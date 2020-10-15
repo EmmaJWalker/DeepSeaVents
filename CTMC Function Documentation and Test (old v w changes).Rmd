@@ -1,0 +1,165 @@
+---
+title: "CTMC Function Documentation and test"
+output: html_notebook
+---
+
+This script simulates the CTMC portion of the model using a Gillespie algorithm, either for a time limit given by (timesteps) or until it reaches the absorbing state. Each configuration is represented by a binary vector, with the first element (starting from the left) representing whether site 1 is on/off, the second whether site 2 is on/off, ...etc.
+
+NOTE: this function is actually very fast provided the expected time to absorption is low!
+
+It follows the following Algorithm:
+**1) SET UP THE PATCHES IN THE INITIAL CONFIGURATION:**
+Set up which patches are on or off according to the initial configuration given in binary (1=on, 0=off)
+**2) END IF WE BEGAN IN THE ABSORBING STATE:**
+If all the patches were off in the initial configuration, then we are already in the absorbing state and the simulation ends
+**3) OTHERWISE, PROVIDED WE ARE NOT ALREADY IN THE ABSORBING STATE:**
+Otherwise, for each timestep (provided at least one patch remains on and therefore we haven't entered the absorbing state and ended the simulation) 
+  **3.1) SET THE RATES OF TRANSITION FOR EACH PATCH**
+  Set the rate each patch should turn on or off at according to whether they are on or off. Patches that are on turn off at rate r.off and patches that are off turn on at rate r.on.
+  **3.2) CALCULATE THE TIME TO THE NEXT TRANSITION**
+  Calculate the time until the next configuration transition should occur (tau). For a CTMC tau is exponentially distributed with mean 1/(the sum of all the rates of transition)
+  **3.3) RECORD THE TIME OF EACH TRANSITION**
+  We would like to keep track of the time each transition takes place at. We do so in a vector called tau.times. NOTE: We don't know how long this vector needs to be and so to be safe this vector is just being appended with new values each time (can slow a program down/eat memory -though memory not an issue on the server I'll run on). Probably it will be shorter than timesteps but because this is a contininuous time model though multiple transitions don't happen "at once" the time to the next transition could occur within the same integer timestep for which we are recording events.
+  **3.4) UPDATE THE TIME ELAPSED IN SIMULATION** 
+  Update the time in the simulation to when this transition should occur (that is current t+tau)
+  **3.5) MAKE THE TRANSITION**
+  Pick a random number between 1 and 0. Then break the range from 0 to 1 into intervals porportional to the probability each path should turn on or off.
+  ie. for a config (0 1 0) the rate.vec is (r.on, r.off, r.on) so intervals porportional to the probability each patch should turn on or off can be defined by cumulative sum of the proportions of time each patch should turn on or off (r.on/(2r.on+r.off), (r.on/(2r.on+r.off))+(r.off/(2r.on+r.off)),(r.on/(2r.on+r.off))+(r.off/(2r.on+r.off))+r.on/(2r.on+r.off))
+  Print the new configuration so we can check A) one patch that was either on or off turned either on or off and B) that the simulation is running through the transitions smoothly and timely
+
+```{r}
+CTMC.sim<-function(timesteps, n.patches, r.on, r.off, initial.config) {
+  
+  #1. SET UP THE PATCHES IN THE INITIAL CONFIGURATION
+  config<-initial.config #setting up patches in the initial configuration
+  tau.times<-0 #no initial time until transition
+  
+  #2. END IF WE BEGAN IN THE ABSORBING STATE
+  if (sum(config)==0){ #if we are already in the absorbing state
+    end.t<-0 #time to absorption is 0
+    
+  #3. OTHERWISE, PROVIDED WE'RE STILL NOT IN THE ABSORBING STATE...  
+  } else { #otherwise
+    for (t in 0:timesteps) { #comment out this line and end bracket if don't want to set a time limit
+      #***actually can't do that in R
+      while (sum(config)>0) { #while at least one patch remains on
+        
+        #3.1 SET THE RATES OF TRANSITION FOR EACH PATCH
+        rate.vec<-rep(NA, n.patches) #construct a vector of transition rates 
+        #depending on initial configuration
+        rate.vec[config==0]<-r.on #if the patch is off set it to turn on at rate r.on
+        rate.vec[config==1]<-r.off #if the patch is on set it to turn off at rate r.off
+        
+        #NEED FOR FOR LOOP BELOW ELIMINATED
+        ########################################
+        #rate.vec<-rep(NA, n.patches) #construct a vector of transition rates 
+        #depending on initial configuration
+        #for (i in 1:n.patches){ #for each patch
+        #  if(config[i]==0){ #if the patch is off
+        #    rate.vec[i]<-r.on} # set it to turn from off to on at rate r.on
+        #  else{ #otherwise
+        #    rate.vec[i]<-r.off}} #set it to turn from on to off at rate r.off
+        ###########################################
+        
+        #3.2 CALCULATE THE TIME TO THE NEXT TRANSITION
+        #select the time until transition (exponential, with mean 1/rate.sum)
+        rate.sum<-sum(rate.vec)
+        tau<-rexp(1, 1/rate.sum) #tau = time until next transition
+        
+        #3.3 RECORD THE TIME OF EACH TRANSITION
+        #############################
+        if (sum(tau.times) == 0){
+          tau.times<-tau
+        } else{
+          tau.times<-c(tau.times, tau)
+        }
+        ##############################
+        
+        #3.4 UPDATE THE TIME ELAPSED IN SIMULATION
+        t<-t+tau
+        
+        #3.5 MAKE THE TRANSITION
+        #unif.val<-runif(1, min=0, max=1) #pick a random number between 0 and 1
+        #    if ((unif.val>=r.off/(rate.sum))){ #if the random number is greater than or equal to 
+        #      #the porportion of times a patch should turn off
+        #      if (any(config==0)){ #if any patches are off
+        #        off.patches<-which(config==0) #find which patches are off
+        #        x<-sample(off.patches, 1)#choose a random patch that's off 
+        #        config[x]<-1# and turn it on 
+        #      }
+        #      }else{#otherwise,
+        #        if (any(config==1)){ #if any or all patches are on
+        #          on.patches<-which(config==1) #find which patches are on
+        #          x<-sample(on.patches, 1) #choose a random patch
+        #          config[x]<-0 #and turn it off
+        #        }
+        #      }
+        #print(config)
+        
+        #3.5 MAKE THE TRANSITION
+        cum.rate<-cumsum(rate.vec/rate.sum) #calculate the cumulative rate of transition
+        #define intervals between 0 and 1 by the proportion of time each patch should transition
+        upper<-cum.rate
+        lower<-c(0,cum.rate[-n.patches])
+        unif.val<-runif(1, min=0, max=1) #pick a random number between 0 and 1
+        if(config[unif.val<=upper & unif.val>lower]==1){ #if the patch lying on the selected interval 
+          #within which the random value fell, is on
+          config[unif.val<=upper & unif.val>lower]<-0 #turn it off
+        } else {config[unif.val<=upper & unif.val>lower]<-1} #otherwise, turn it on
+        
+        #NEED FOR FOR LOOP ELIMINATED BY ABOVE IF ELSE STATEMENT
+        #for (i in 1:n.patches){ #for each patch
+        #  if (unif.val<=upper[i] & unif.val>lower[i]) { #if the unif.value <= the cumulative rate <- THIS IS THE PROBLEM
+        #ALL PATCHES BELOW THE CUMRATE TRANSITION, RATHER THAN ONLY THE ONE ON THE INTERVAL BETWEEN CUMRATE[i] and
+        #CUMRATE[i-1] *or 0 for the first
+        #   if (config[i]==0){ #if the patch was off
+        #      config[i]<-1} #turn it on
+        #    else { #otherwise
+        #      config[i]<-0} #turn it off
+        #  }}
+        print(config)
+        
+        ###THIS IS AUSTIN's OLD CODE, PROBLEM WAS IT WAS NOT CHOOSING PATCHES TO TURN ON AND OFF PROPERLY
+        ###ONLY 1 PATCH SHOULD BE ABLE TO TURN ON OR OFF AT AT TIME BUT THIS WAS TURNING MULTIPLE ON AND OFF
+        ################################################################################################
+        #cum.rate<-cumsum(rate.vec/rate.sum) #calculate the cumulative rate of transition
+        #next state is determined by comparing the unif.value to the cumulative rate:
+        #for (i in 1:n.patches){ #for each patch
+        #  if (unif.val<=cum.rate[i]) { #if the unif.value <= the cumulative rate <- THIS IS THE PROBLEM
+        #ALL PATCHES BELOW THE CUMRATE TRANSITION, RATHER THAN ONLY THE ONE ON THE INTERVAL BETWEEN CUMRATE[i] and
+        #CUMRATE[i-1] *or 0 for the first
+        #   if (config[i]==0){ #if the patch was off
+        #      config[i]<-1} #turn it on
+        #    else { #otherwise
+        #      config[i]<-0} #turn it off
+        #  }}
+        #################################################################################################
+        
+        end.t<-t #time to absorption or simulation end
+      } #end of while loop
+    } #end of for loop
+  } #end of else bracket
+  return(list(end.t, tau.times))
+}
+```
+
+#TEST
+
+#INITIALIZING PARAMETERS
+```{r}
+timesteps<-1000000 #total number of iterations to run the model (optional, if unspecified will run until absorption)
+n.patches<-2 #number of patches in the landscape
+r.on<-100 #rate at which patches turn from off to on
+r.off<-1 #rate at which patches turn from on to off
+initial.config<-c(1,1)#rbinom(n.patches, 1, 0.5) #initial habitat configuration of patches on and off
+#drawn from the binomial distribution with 0.5 probability of success getting 1 (or 0)
+
+out<-CTMC.sim(1000, 2, r.on=100, r.off=1, initial.config = c(1,1))
+out
+#warnings are fine because they are indeed telling me that the part of the function they correspond 
+#to are doing what I want
+#warnings()
+out[[1]]
+out[[2]]
+```
+

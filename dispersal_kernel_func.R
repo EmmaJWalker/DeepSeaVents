@@ -1,0 +1,40 @@
+#This function calculates the f(dij;i,j) values used to evaluate the rhs of the SRLM ODE system
+#It takes as argumaents the matrix of distances between patches (mat);
+# structural parameters alpha, gamma, and epsilon;
+#a binary indicating whether the patches include self-recruitment;
+#and the number of patches (n.patches).
+#The dispersal parameter alpha is the inverse of the mean dispersal distance,
+#used in the negetive exponential kernel exp(-alpha*d)
+#gamma in [0,1] is the extent to which the dispersal is unidirectional or bidirectional
+#(0 being bi- and 1 being "downstream"  and therefore uni-)
+#Epsilon controls the extent to which dispersal is between nearest neighbours or further out.
+#Epsilon=1 gives nearest neighbours, whereas epsilon=N, garuntees connectivity 
+#going as far as the directionality will allow.
+#self.rec==1, will change f(dii=1) and include it in the rhs of the ODE's allowing self recruitment
+
+disp.kernel<-function(mat, alpha, gamma, epsilon, self.rec, n.patches){
+  k<-matrix(rep(0,n.patches*n.patches),n.patches,n.patches)
+  
+  for (i in 1:n.patches){ #for each patch
+    for(j in 1:n.patches){ #to each other patch
+      if((i<j) && (abs(i-j)<=epsilon)){ #if patch j is "upstream" of patch i and reachable
+        #by dispersers from patch i
+        k[i,j]<-(1-gamma)*exp(-alpha*mat[i,j])} #dispersal decreases according to the strength
+      #to which upstream dispersal is limited, and further decreases exponentially with 
+      #1/(avg.dispersal distance) (alpha) and the distance between the patches
+      else if ((i>j) && (abs(i-j)<=epsilon)){ #if patch i is "downstream" of patch i and reachable
+        #by dispersers from patch j
+        k[i,j]<-exp(-alpha*mat[i,j])} #dispersal decreases exponentially with 
+      #1/(avg. dispersal distance) (alpha) and the distance between the patches
+      else if ((i==j) && (self.rec==1)){ #otherwise if the other patch is itself and self recruitment
+        #is allowed
+        k[i,j]<-1} #dispersal to itself occurs
+      else{ #otherwise,
+        k[i,j]<-0 #no dispersal between the two patches or itself occurs
+      }
+    }
+  }
+  return(k) #provide the appropiate dispersal kernel
+}
+
+#CHECKED in config_stability_and_script
