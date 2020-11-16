@@ -1,3 +1,11 @@
+---
+title: "disp kernel Function Documentation and Testing"
+output: html_notebook
+---
+
+This function calculates the dispersal kernel of a species within a landscape (the f(dij;i,j) values used to evaluate the rhs of the SRLM ODE system). It takes as arguements the matrix of distances between patches (mat); structural parameters alpha, gamma, and epsilon; a binary indicating whether the patches include self-recruitment; and the number of patches (n.patches or N). The dispersal parameter alpha is the inverse of the mean dispersal distance (used in the negetive exponential kernel exp(-alpha*d)), gamma in [0,1] is the extent to which the dispersal is unidirectional or bidirectional (0 being bi- and 1 being "downstream"  and therefore uni-), epsilon controls the extent to which dispersal is between nearest neighbours or further out (epsilon=1 gives nearest neighbours, whereas epsilon=N, garuntees connectivity) going as far as the directionality will allow. self.rec==1, will change f(dii=1) and include it in the rhs of the ODE's allowing self recruitment.
+
+```{r}
 disp.kernel<-function(mat, alpha, gamma, epsilon, self.rec, n.patches){
   k<-matrix(rep(0,n.patches*n.patches),n.patches,n.patches)
   
@@ -22,3 +30,7 @@ disp.kernel<-function(mat, alpha, gamma, epsilon, self.rec, n.patches){
   }
   return(k) #provide the appropriate dispersal kernel
 }
+```
+
+TESTING
+this has been checked in the SRLM

@@ -1,12 +1,3 @@
-#This function calculates the right-hand side of the system of ODEs that make up the SRLM
-#(i.e., for use in the ode45 function that runs the SRLM). 
-#It is a function of p (the occupancy porportions) over N patches (n.patches),
-#the colonization (c.rate) and extinction rates (E), the dispersal function evaluations
-# f.vals (i.e., f(dij;i,j)), the areas of the patches (A), the patches that are left out 
-#(i.e. patches that are turned off and do not contribute to the rhs of the ODE system),
-#and whether patches have self recruitment (binary, self.rec).
-#"TD" stands for "time dependent", indicating that the model varies over time according to
-#which configuration of sites on/off the system is in.
 SRLM.ODE<-function(t,p,parameters){
   with(c(p, parameters), {
     ###############################################################################################
@@ -32,7 +23,7 @@ SRLM.ODE<-function(t,p,parameters){
     ###############################################################################################
     #create a 1D matrix to hold the right hand side of the ODE equations (dp)
     dP=matrix(rep(NA, n.patches), n.patches, 1) 
-    interactions<-0
+    interactions<-0 #we don't have any interactions in this model at the moment so ignore this term
     ###############################################################################################
     #Loops to construct the system of ODEs
     for (i in 1:n.patches){ #for each patch
@@ -56,9 +47,4 @@ SRLM.ODE<-function(t,p,parameters){
     return(RHS)
   }) # end with(as.list ...
 }
-####################################################################################################
-####################################################################################################
-
-#CHECK against matlab
-#output<-ode(SRLM.ODE, parameters,times=seq(0,round(tau,0),1),y=p)
 

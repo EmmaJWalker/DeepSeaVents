@@ -1,9 +1,31 @@
+---
+title: "quasi.eq Function Documentation and Testing"
+output: html_notebook
+---
+
+This function takes as its arguments the number of patches (N), and the rates of patches turning from off to on (r.on) and on to off (r.off). It constructs the generator matrix (A -as Austin called it- or G.mat -as I call it inline with convention-) that describes the transition rates from each configuration of on/off to each other. It then takes the submatrix corresponding with the transient states (C.submat -again following convention-) and calculates the quasi-equilibrium distribution (QED.dist) and expected time to absorption into the all the all-zero state (t.absorp) using the dominant eigenvector/eigenvalue pair from A_submat. Similarly it also calculates the rate of convergence to the QED vs absorption (rate.comparison) and the ratio of means distribution (ratio.of.means.dist) for checking how reasonable the QED calculations are.
+
+Specifically,
+
+The **quasi-equilibrium distribution** is the the dominant left eigenvector (ie. the left eigenvector corresponding to the eigenvalue with maximal real part of the subgenerator matrix C)
+
+The **time to absorption** (given we begin in a given state) is given by the sum of each row of the fundamental matrix.
+
+The QED is only a good measure when the **rate of convergence to the QED vs. absorption** is less than 1. That is when 2(rho.1/rho.2)<1 (vs. QED poor when >1), where rho.1 is the dominant eigenvalue and rho.2 is the next largest.
+
+The **ratio of means distribution** provides the probality of and/or proportion time spent in each configuration depending on which configuration we began in. This should converge to the quasi equilibrium distribution provided time to absorption long enough (2(rho.1/rho.2)<<1) and provides a good check our calculations of this and the QED are behaving properly. It is given by the fundamental matrix divided by the sum of it's rows. 
+
+
+Note: I might actually be able to speed up this function by replacing the for loops as I did in the CTMC function but that may be a lot of unessecary work so I'm going to leave it for now.
+```{r}
 #The first step is to create binary vectors i and j for each configuration
 #done by expressing each value from 0 to 2^(N-1) in binary, 
 #and a zero in the n'th decimal place of the value [i.e., starting from the right]
 #indicates the nth patch is off, while a one indicates the nth patch is on
 quasi.eq<-function(n.patches, r.on, r.off){
   library("R.utils") #needed for creating a binary number
+  start.time <- Sys.time()
+
   A<-matrix(rep(0,2^n.patches*2^n.patches),2^n.patches,2^n.patches)
   
   for (i in 0:(2^n.patches-1)){ # for each possible state transition from off to on
@@ -44,7 +66,11 @@ quasi.eq<-function(n.patches, r.on, r.off){
   }
   #this provides us with the infinitessimal generator matrix A 
   G.mat<-(A)
+  end.time <- Sys.time()
+time.taken <- end.time - start.time
+print(time.taken)
   
+start.time<-Sys.time()
   #C.submat is the submatrix corresponding to the transient states (i.e. on to off or off to on 
   #(not staying on or turning off))
   C.submat<-G.mat[2:2^(n.patches),2:2^(n.patches)]
@@ -83,6 +109,92 @@ quasi.eq<-function(n.patches, r.on, r.off){
   for (i in 1:2^n.patches-1){
     ratio.of.means.dist[i,]<-fundamental.matrix[i,]/sum(fundamental.matrix[i,])}
   
+  end.time <- Sys.time()
+time.taken <- end.time - start.time
+print(time.taken)
+  
   print(G.mat)
   return(list(QED.dist=QED.dist, T.absorp=T.absorp, rate.comparison=rate.comparison, ratio.of.means.dist=ratio.of.means.dist))
 }
+```
+
+TESTING
+Things to look for
+A) The ratio of means distribution converges to the QED when the rate comparison is well below 1
+B) Check calculations by hand for a 2 patch test case
+```{r}
+quasi.eq(n.patches=2, r.on=100, r.off=1)
+```
+Works great!
+
+Increasing patch number...
+```{r}
+quasi.eq(n.patches=4, r.on=100, r.off=1)
+```
+Works great!
+
+Again...
+```{r}
+quasi.eq(n.patches=6, r.on=100, r.off=1)
+```
+Still good but numbers are starting to get very small
+
+Thoughts:
+1) More patches = faster convergence to the QED for same rates
+2) More patches = longer time to absorption... as we would expect
+
+
+Even higher...
+```{r}
+quasi.eq(n.patches=7, r.on=100, r.off=1)
+```
+And it breaks
+
+Thoughts:
+1) QED is indeed being reached very fast -we still get and estimate for this and for the rate of convergence... just not time to absorption and ratio of means distribution-
+2) Time to absorption, though shown as -INF here blows up
+3) We're probably into rounding errors in R here
+
+Lets' try for different rates r.on and r. off
+how about equal rates to start and let's go back to 6 patches
+```{r}
+quasi.eq(n.patches=6, r.on=1, r.off=1)
+```
+
+10x higher r.on
+```{r}
+quasi.eq(n.patches=6, r.on=10, r.off=1)
+```
+Thoughts
+1) Time to absorption increasing
+2) faster convergenge to QED
+
+And making r.off 10x bigger than r.on
+```{r}
+quasi.eq(n.patches=6, r.on=1, r.off=10)
+```
+Thoughts
+1) Time to absorption low (within 100 timesteps)
+2) Slow convergence to QED (outside range where QED appropiate)
+3) ratio of means distribution does not converge close to the QED
+
+Ok so now let's see what r.on needs to be for 7 patches to work
+```{r}
+quasi.eq(n.patches=7, r.on=10, r.off=1)
+```
+Alright 10x works
+
+Thoughts
+1) So for higher patch numbers r.on needs to be high enough (or r.off low enough) for the calculator to provide accurate time to absorption and the ratio of means distribution
+2) the QED and rate convergence calculations might be ok... would have to explore
+
+Let's try and make it work for a very large number of patches (like what we might have in a landscape)
+starting with 20
+```{r}
+quasi.eq(n.patches=20, r.on=1000000, r.off=1)
+```
+mmmmmm.....too big on space
+ran out for the left eigenvectors... which we need to calculate the QED
+There are some possible ways around this
+1) run on the server (It's got a BIG memory)
+2) try saving chunks of out put in files and processing chunks at a time <- might not be possible if we can't even store one vector at a time..... we shall see
