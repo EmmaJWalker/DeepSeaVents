@@ -3,11 +3,12 @@ title: "2 patch test case"
 output: html_notebook
 ---
 
-This notebook uses a 2 patch test case to check and explore code developed for this project.
+### This notebook uses a 2 patch test case to check and explore code developed for this project.
 
-Loading packages and functions
+## Loading packages and functions
 ```{r}
 rm(list=ls()) #clear the workspace
+library("tufte")
 library("ggplot2")
 library("pracma")
 library("deSolve")
@@ -27,11 +28,10 @@ source("lambda_M_func.r")
 source("metapop_size_at_QED.r")
 ```
 
-**Setting our parameters**
-Let's start with 2 patches of equal area (1 unit) arranged linearly (and uniformly by default since there are only 2 patches).
-We'll have them turn on and off at the same rate. 
-We'll ensure the species colonization rate is higher than the extinction rate by quite a lot so we can see some dynamics of a population supported in the landscape. (relatively arbitrarily e=0.1, c=4)
-The species will be globally dispersing thus with an average dispersal distance of 10 units (the extent of our landscape), thus, alpha=0.1 and there will be no currents impacting dispersal (bidirectional dispersal, gamma=0, all patches within reach epsilon=n.patches). Self recruitment will be allowed or else persistence is impossible without both patches remaining on.
+## Setting our parameters
+
+We start with 2 patches of equal area (1 unit) arranged linearly (and uniformly by default since there are only 2 patches). For now patches turn on and off at the same rate. We also ensure the species colonization rate is higher than the extinction rate by quite a lot so we can see some dynamics of a population supported in the landscape (relatively arbitrarily e=0.1, c=4). The species will be globally dispersing thus with an average dispersal distance of 10 units (the extent of our landscape), thus, alpha=0.1 and there will be no currents impacting dispersal (bidirectional dispersal, gamma=0, all patches within reach epsilon=n.patches). Self recruitment will be allowed or else persistence is impossible without both patches remaining on.
+
 ```{r}
 #Landscape Parameters
 n.patches<-2
@@ -54,7 +54,8 @@ gamma<-0
 epsilon<-n.patches
 ```
 
-Setting up the landscape and viewing it.
+## Setting up the landscape and viewing it.
+
 ```{r}
 landscape<-create.landscape(n.patches=n.patches, landscape.type=landscape.type, landscape.limit=landscape.limit, 
                             patch.distribution=patch.distribution, areas.distribution=areas.distribution,
@@ -63,12 +64,14 @@ print(ggplot(landscape, aes(x.coord,y.coord)) + theme_classic() + geom_point(aes
 #note the scales of the areas are proportional to the specified areas but do not appear the correct size relative to the extent of the landscape/coordinates
 ```
 
-Analytic calculations of the QED, time to absorption, rate of convergence to QED vs. absorption and ratio of means distribution: 
+## Analytic calculations of the QED, time to absorption, rate of convergence to QED vs. absorption and ratio of means distribution:
 
-We can check these against what they should be by hand (I just used wolfram alpha to do the matrix operations to save time).
+We can check these against what they should be by hand (I just used wolfram alpha to do the matrix algebra for me to save time and numbers are approximate but as you will see roughly equal to our results).
 
-For 2 patches our generator matrix $$G$$ (note: Austin calls this A) should have the form:
+For 2 patches our generator matrix $G$ should have the form (note: Austin calls this matrix A):
+
 $$
+G=
 \left[\begin{array}
 {rrrr}
 0 & 0 & 0 & 0 \\
@@ -77,8 +80,10 @@ r.off & 0 & -(r.on+r.off) & r.on \\
 0 & r.off & r.off & -2(r.off) \\
 \end{array}\right]
 $$
-Where $$C$$ (note: Austin calls this A_submat) the submatrix of transitions between all the non-absorbing states is:
+Where $C$ the submatrix of transitions between all the non-absorbing states is (note: Austin calls this A_submat):
+
 $$
+C=
 \left[\begin{array}
 {rrr}
 -(r.on+r.off) & 0 & r.on \\
@@ -87,9 +92,10 @@ r.off & r.off & -2(r.off) \\
 \end{array}\right]
 $$
 
+For r.on=0.001 and r.off=0.001 we should get the generator matrix ($G$):
 
-For r.on=0.001 and r.off=0.001 we should get the generator matrix ($$G$$):
 $$
+G=
 \left[\begin{array}
 {rrrr}
 0 & 0 & 0 & 0 \\
@@ -99,9 +105,12 @@ $$
 \end{array}\right]
 $$
 
-QED is by definition given by the left eigenvector corresponding to the the leading eigenvalue of the submatrix $$C$$ 
+### Calculating QED
+
+$QED$ is by definition given by the left eigenvector corresponding to the the leading eigenvalue of the submatrix $C$ 
 
 $$
+C=
 \left[\begin{array}
 {rrr}
 -0.002 & 0 & 0.001 \\
@@ -117,19 +126,25 @@ $$
 0.707 & 0.707 & 1 \\
 \end{array}\right]
 $$
+
 standardized by the time spent in each (or relative probability of each):
 
 $$
+QED=
 \left[\begin{array}
 {rrr}
 0.29 & 0.29 & 0.41 \\
 \end{array}\right]
 $$
 
-Average time to absorption from each state is simply the sum of the rows of the fundamental matrix ($$N$$) where $$N=-C^-1$$ scaled by a constant ($$c$$) given by the trace of $$-C$$ 
+### Calculating Avergae expected time to absorption
 
-So since $$N$$ is:
+Average time to absorption from each state ($T_A$) is simply the sum of the rows of the fundamental matrix ($N$) where $N=-C^{-1}$ scaled by a constant ($c$) given by the trace of $-C$ 
+
+So since $N$ is:
+
 $$
+N=
 \left[\begin{array}
 {rrr}
 750 & 250 & 500 \\
@@ -137,21 +152,30 @@ $$
 500 & 500 & 1000 \\
 \end{array}\right]
 $$
-and the trace of $$-C$$ is 0.006. Average time to absorption from each state is:
+
+and the trace of $-C$ is 0.006. Average time to absorption from each state is:
 
 $$
+T_A=
 \left[\begin{array}
 {rrr}
 9 & 9 & 12 \\
 \end{array}\right]
 $$
-The rate of convergence to Absorption is given by the negative of the maximum eigenvalue of $$C$$ ($$-\rho_1$$) and rate of convergence to QED is the maximum eigenvalue of $$C$$ minus the next largest eigenvalue of C ($$\rho_1-\rho_2$$).The QED has been determined to only be useful in representing the system when $$2*\rho_1/\rho_2<1$$ (cite) so comparing these rates we get
+
+### Calculating a comparison of the rate of convergence to QED versus time to absorption letting us know whether the QED is reliable or not
+
+The rate of convergence to Absorption is given by the negative of the maximum eigenvalue of $C$ ($-\rho_1$) and rate of convergence to QED is the maximum eigenvalue of $C$ minus the next largest eigenvalue of C ($\rho_1-\rho_2$).The QED has been determined to only be useful in representing the system when $2*\rho_1/\rho_2<1$ (cite) so comparing these rates we get
 
 $$2(-0.000585786)/(-0.002)=0.585786$$
-And finally the ratio of means distribution is defined as $$N$$ divided by the sum of it's rows and provides us with the mean porportion of time spent in each state if we were to begin in any given state and converges to the QED when the rate of convergence to absorption is long versus the rate of convergence to the QED ie. when the above equation is satisfied. 
+### Calculating the ratio of means distribution
+
+And finally the ratio of means distribution ($RMD$) is defined as $N$ divided by the sum of it's rows and provides us with the mean porportion of time spent in each state if we were to begin in any given state and converges to the QED when the rate of convergence to absorption is long versus the rate of convergence to the QED ie. when the above equation is satisfied. 
 
 Thus, the ratio of means distribution is:
+
 $$
+RMD=
 \left[\begin{array}
 {rrr}
 0.5 & 0.167 & 0.333 \\
@@ -160,7 +184,8 @@ $$
 \end{array}\right]
 $$
 
-Now letting R calculate these using the function I coded:
+### Now letting R calculate these using the function I coded:
+
 ```{r}
 #Analytically calculating time to absorption and the Q.E.D.
 ###################################################################################################
@@ -172,8 +197,10 @@ QED
 
 And we see these give exact same output.
 
+### Also checking the Ratio of Means Distribution converges to the QED when the QED is expected to be reliable
 
-Now let's check the QED calculator (quasi.eq()) by varying r.on and r.off and looking at the rate comparison versus whether or not the ratio of means distribution converges to the QED to ensure this is behaving as expected.
+Now also checking the QED calculator (quasi.eq()) behaves as expected by varying r.on and r.off and looking at the rate comparison versus whether or not the ratio of means distribution converges to the QED. 
+
 1. r.off 10x r.on so should reach absorption quickly and QED estimate should be poor and not reflected in the ratio of means
 ```{r}
 QED<-quasi.eq(n.patches=n.patches, r.on=0.1, r.off=1)

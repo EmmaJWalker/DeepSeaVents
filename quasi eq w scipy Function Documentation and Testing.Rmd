@@ -18,15 +18,19 @@ The **ratio of means distribution** provides the probality of and/or proportion 
 
 Note: I might actually be able to speed up this function by replacing the for loops as I did in the CTMC function but that may be a lot of unessecary work so I'm going to leave it for now.
 ```{r}
+library("reticulate")
+library("Matrix")
+```
+
+
+```{r}
 #The first step is to create binary vectors i and j for each configuration
 #done by expressing each value from 0 to 2^(N-1) in binary, 
 #and a zero in the n'th decimal place of the value [i.e., starting from the right]
 #indicates the nth patch is off, while a one indicates the nth patch is on
 quasi.eq<-function(n.patches, r.on, r.off){
   library("R.utils") #needed for creating a binary number
-  start.time <- Sys.time()
-
-  A<-matrix(rep(0,2^n.patches*2^n.patches),2^n.patches,2^n.patches)
+  A<-as(matrix(rep(0,2^n.patches*2^n.patches),2^n.patches,2^n.patches), "sparseMatrix")
   
   for (i in 0:(2^n.patches-1)){ # for each possible state transition from off to on
     for (j in 0:(2^n.patches-1)){ #and for each possible state transition from on to off
@@ -66,17 +70,18 @@ quasi.eq<-function(n.patches, r.on, r.off){
   }
   #this provides us with the infinitessimal generator matrix A 
   G.mat<-(A)
-  end.time <- Sys.time()
-time.taken <- end.time - start.time
-print(time.taken)
+  #G.mat<-(as(A, "sparseMatrix"))
+  #sparse_G <- as(G.mat,  
+  #              "sparseMatrix")
   
-start.time<-Sys.time()
   #C.submat is the submatrix corresponding to the transient states (i.e. on to off or off to on 
   #(not staying on or turning off))
   C.submat<-G.mat[2:2^(n.patches),2:2^(n.patches)]
+  #sparse_C <- as(C.submat, "sparseMatrix")
+  print(C.submat)
   #the negetive inverse of C gives us the fundamental matrix N=(I-Q)^-1, 
   #which gives the ratio of means distribution
-  fundamental.matrix<--inv(C.submat)
+  fundamental.matrix<--solve(C.submat) #solve gives the inverse of a matrix *not inv*
   
   #from C we can easily calculate the quasi equilibrium distribution 
   #and time to absorption using the eigenvectors and eigenvalues of the matrix
@@ -108,10 +113,6 @@ start.time<-Sys.time()
   ratio.of.means.dist<-matrix(rep(NA,(2^n.patches-1)^2),2^n.patches-1,2^n.patches-1)
   for (i in 1:2^n.patches-1){
     ratio.of.means.dist[i,]<-fundamental.matrix[i,]/sum(fundamental.matrix[i,])}
-  
-  end.time <- Sys.time()
-time.taken <- end.time - start.time
-print(time.taken)
   
   print(G.mat)
   return(list(QED.dist=QED.dist, T.absorp=T.absorp, rate.comparison=rate.comparison, ratio.of.means.dist=ratio.of.means.dist))
