@@ -86,8 +86,10 @@ metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.re
   }
   #get the time-averaged metapopulation sizes
   QED.output<-quasi.eq(n.patches, r1, r2)
-  dom.left<-QED.output[[1]]#QED distribution
+  QED<-QED.output[[1]]#QED distribution
   T.absorp<-QED.output[[2]]#Time to absorption
-  weighted.metapop.size<-dot(dom.left,metapop.size[2:2^n.patches])
+  #weighted.metapop.size<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
+  #should actually be the geometric mean
+  weighted.metapop.size<-exp(dot(QED,log(metapop.size[2:2^n.patches])))
   return(weighted.metapop.size)
 }

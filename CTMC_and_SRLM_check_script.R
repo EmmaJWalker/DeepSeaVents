@@ -1,13 +1,13 @@
 rm(list=ls()) #clear the workspace
 library("pracma")
 library("deSolve")
-setwd("C:/Users/abuga/OneDrive/Desktop/HVMcode")
-source("create_landscape_func.r")
+setwd("C:/Users/abuga/OneDrive/Desktop/DeepSeaVents-master")
 source("SRLM_ODE_func.r")
 source("at_equilibrium_rootfunc.r")
 source("dispersal_kernel_func.r")
 source("CTMC_and_SRLM_func.r")
 source("lambda_M_func.r")
+source("create_landscape_func.r")
 
 #Initializing Parameters:
 ###################################################################################################
@@ -27,15 +27,19 @@ self.rec<-1
 r1<-0.02
 r2<-0.01
 ####################################################################################################
-#Initial.Lm<-3000
+lambda.M<-get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon)
+lambda.M
+Initial.Lm<-3000
 #first let's scale our e.rate and c.rate to ensure a high enough persistence capacity the
 #metapopulation has the opportunity to experience some growth
-#delta<-Initial.Lm/(get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon))
-#delta
-#e.rate<-1
-#c.rate<-1/delta
-#lambda.M<-get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon)*delta
-#lambda.M
+delta<-Initial.Lm/(get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon))
+delta
+e.rate<-1
+c.rate<-1/delta
+#e.rate<-delta
+#c.rate<-1
+lambda.M<-get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon)*delta
+lambda.M
 
 
 sim.data<-CTMC.SRLM(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon, self.rec, r1, r2)

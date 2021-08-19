@@ -12,23 +12,29 @@
 #NOTE: delta can be factored out of this calculation by letting delta = 1
 #################################################################################################################
 pstar.function<-function(landscape, a, delta, iterations){
-  
   n.patches<-length(landscape$patch.ID)
-  A<-landscape$A
-  d<-as.matrix(landscape[,5:(dim(landscape)+4)])
+  x.coord<-landscape$x.coord
+  y.coord<-landscape$y.coord
+  AREA<-landscape$areas
+  delta<-e.rate/c.rate
+  
+  # construct the distance matrix
+  dist.mat<-matrix(rep(0,n.patches*n.patches),n.patches,n.patches)
+  for (i in 1:n.patches){
+    for (j in 1:n.patches){
+      dist.mat[i,j]<-sqrt((x.coord[i]-x.coord[j])^2+(y.coord[i]-y.coord[j])^2)
+    }
+  }
+  #Getting the f(dij) values to plug into the rhs
+  DISPKERNEL<-disp.kernel(dist.mat,alpha,gamma,epsilon,self.rec,n.patches)
   
   #STEP 1: SET UP OF MATRIX M
-  M<-rep(NA, n.patches*n.patches); dim(M)<-c(n.patches,n.patches)
-  for (i in 1:n.patches){ #for each row of matrix M
-    for (j in 1:n.patches){ #for each column of matrix M
-      if (i==j){M[i,j]<-0} #let the connectivity of a patch to itself be 0
-      else{M[i,j]<-A[i]*A[j]*exp(-a*d[i,j])} 
-      #let the connectivity of other patches to that patch be AiAje^(-adij)Pj
-      if(M[i,j]<1*(10^-8)){M[i,j]<-1*(10^-8)}#assume that there is always some very very small
-      #probability that a patch may be colonized because there is never 0 chance and because
-      #R makes a rounding error making this 0, if this is too close to 0
-      
-    }}
+  M<-matrix(rep(NA, n.patches*n.patches), n.patches,n.patches)
+  for (i in 1:n.patches){ #for each patch
+    for (j in 1:n.patches){ #to each other patch (including itself)
+      M[i,j]<-AREA[j]*DISPKERNEL[i,j]*delta
+    }
+  }
   
   #ITERATING FUNCTION TO FIND P*
   p<-rep(NA, n.patches*iterations);dim(p)<-c(iterations,n.patches)

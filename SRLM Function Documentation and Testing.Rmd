@@ -119,9 +119,12 @@ gamma<-0
 epsilon<-n.patches
 delta<-e.rate/c.rate
 #rates of vents turning off to on and on to off respectively
-r1<-0.02
-r2<-0.01
+r1<-1/100000#0.02
+r2<-1/100#0.01
 config<-rbinom(n.patches, 1, 0.5)
+while(sum(config)==0){#just to ensure we don't start in the absorbing state
+  config<-rbinom(n.patches, 1, 0.5)
+}
 ```
 
 Calculations to use these to obtain all our parameters for the SRLM ODE

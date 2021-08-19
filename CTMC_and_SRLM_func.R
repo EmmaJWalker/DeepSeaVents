@@ -31,10 +31,10 @@ CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon,
   f.names<-as.vector(f.names)
   
   #2) SET THE INITIAL CONDITIONS
-  #initial habitat configuration of patches on/off
+  #randomly set initial habitat configuration of patches on/off
   config<-rbinom(n.patches, 1, 0.5)
-  #initial occupancy levels
-  new.ICs<-0.5*config
+  #initial occupancy levels (all on patches fully occupied)
+  new.ICs<-1*config
   #configs.data<-config
   
   #3) BEGIN THE SIMULATION
@@ -52,7 +52,7 @@ CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon,
     #3.2 CALCULATE THE TIME TO THE NEXT TRANSITION
     #select the time until transition (exponential, with mean 1/rate.sum)
     rate.sum<-sum(rate.vec)
-    tau<-rexp(1, 1/rate.sum) #tau = time until next transition
+    tau<-rexp(1, 1/rate.sum)
     #tau<-1000 #for test purposes ONLY!!!
     
     #3.3 RECORD THE TIME OF EACH TRANSITION
@@ -91,12 +91,26 @@ CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon,
     ###########################################
     
     #3.3 A3) Make sure tau is not <1 or this will create an error in the ODE solver
-    if (tau<=1){ #if tau is less than one it will be rounded to 0 which will produce an error in ode
-      tau<-1 #so if tau is less than 1, let it be rounded up to 1 
-    }
+    #if (tau<=1){ #if tau is less than one it will be rounded to 0 which will produce an error in ode
+    #  tau<-1 #so if tau is less than 1, let it be rounded up to 1 
+    #}
     
     #3.3 A4) SOLVE AND FORMAT OUTPUT INTO A DATA TABLE
-    output<-ode(SRLM.ODE, parameters,times=seq(0,round(tau, 0),1),y=new.ICs)
+    #must check order of magnitude of tau and set step length accordingly
+    ###########################################TOO SLOW
+    #if(tau<=10){
+    #  mag<-ceiling(log10(tau))
+    #} else { mag<-floor(log10(tau))}
+    #step.length<-1*(10^(mag-1)) #set step length to be an order of magnitude less than tau
+    ##########################################TOO SLOW
+    ##########################################FASTER
+    if(tau<1){ #if tau is less than one
+      step.length<-tau/2 #let the step length for the SRLM be half of tau, to ensure the DE's are 
+      #solved properly on this interval
+    }else{step.length<-1} #otherwise just use a step length of 1
+    ##########################################FASTER
+    output<-ode(SRLM.ODE, parameters,times=seq(0,tau,step.length),y=new.ICs)
+    
     #shift the time by the already accumulated time (t) and append to past values
     output<-data.frame(output)
     output$time<-output$time+t
@@ -131,3 +145,14 @@ CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon,
   end.t<-t #time to absorption or simulation end
   return(list(sim.data=sim.data, configs.data=configs.data))
 }
+
+#Check:
+landscape<-create.landscape(n.patches=10, landscape.type="linear", landscape.limit=100, 
+                            patch.distribution="uniform", areas.distribution="uniform", areas.limit=1, 
+                            clustering.iters=0)
+print(ggplot(landscape, aes(x.coord,y.coord)) + theme_classic() + geom_point(aes(size = areas)))
+n.patches<-length(landscape$patch.ID) #for future use
+#
+test<-CTMC.SRLM(total.t<-2000, landscape=landscape, e.rate<-0.1, c.rate<-0.2, alpha<-10, gamma<-0, 
+                epsilon<-n.patches, self.rec<-1, r.on<-1/100, r.off<-1/100000)
+test #~1 min for 15 timesteps -> 2.2 hrs :/

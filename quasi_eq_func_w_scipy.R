@@ -1,4 +1,8 @@
+rm(list=ls()) #clear the workspace
 library("reticulate")
+library("Matrix") #to get sparse matrices
+library("gdata") #to get upper and lower triangles of matrices
+library("lava") #to get antidiagonal of a matrix using revdiag
 
 #The first step is to create binary vectors i and j for each configuration
 #done by expressing each value from 0 to 2^(N-1) in binary, 
@@ -6,62 +10,54 @@ library("reticulate")
 #indicates the nth patch is off, while a one indicates the nth patch is on
 quasi.eq<-function(n.patches, r.on, r.off){
   library("R.utils") #needed for creating a binary number
-  A<-matrix(rep(0,2^n.patches*2^n.patches),2^n.patches,2^n.patches)
   
-  for (i in 0:(2^n.patches-1)){ # for each possible state transition from off to on
-    for (j in 0:(2^n.patches-1)){ #and for each possible state transition from on to off
-      bin.val.i<-intToBin(i) #obtain the binary representation of i 
-      bin.val.i<-strsplit(bin.val.i,"")
-      bin.val.j<-intToBin(j) #obtain the binary representation of j
-      bin.val.j<-strsplit(bin.val.j,"")
-      states.i<-rep(0,n.patches) #create a vector to hold all possible future states of each patch
-      states.j<-rep(0,n.patches) #create a vector to hold all possible previous states of each patch
-      for (k in 1:length(bin.val.i[[1]])){ #for each binary digit in i
-        states.i[length(bin.val.i[[1]])-k+1]<-as.numeric(as.character(bin.val.i[[1]][k]))}
-      #set the possible future states for each patch to be every possible binary state (on or off) 
-      for (k in 1:length(bin.val.j[[1]])){ #for each binary digit in j
-        states.j[length(bin.val.j[[1]])-k+1]<-as.numeric(as.character(bin.val.j[[1]][k]))}
-      #set the possible previous states for each patch to be every possible binary state (on or off)
-      
-      rate.vec.i<-rep(0,n.patches) #create a vector to hold the trans rates of patches turning on/off
-      if (sum(states.i!=0)){ #provided we're not in the absorbing state when all patches are off
-        #(in which case we never move out of it at any rate so rate.vec remains 0)
-        for (q in 1:n.patches){ #for each patch
-          if (states.i[q]==0){rate.vec.i[q]<-r.on} #if it is off, set it to turn on at rate r.on
-          else{rate.vec.i[q]<-r.off} #otherwise set it to turn off at rate r.off
-        }
-      }
-      # Hamming distance between the two vectors representing the on/off
-      #determines if patches are set to turn on or off, or both (/neither) within a timestep
-      dist.H<-sum(abs(states.i-states.j)) #using the difference (distance) between the two
-      #if the state vectors are the same (i.e. a patch that's off will remain off and visa versa), 
-      if (dist.H == 0) {A[i+1,j+1]<--sum(rate.vec.i)} #the transition rate is the negetive sum of 
-      #all the other transition rates
-      #where as if the state vectors differ by one spot, (i.e. a patch that's on will turn off and visa versa)
-      if (dist.H == 1){A[i+1,j+1]<-rate.vec.i[states.i!=states.j]}#then the transition rate is given 
-      #by whatever the differing spot is (i.e., from on to off or vice versa)
-      #where as if the vectors are different in two or more spots, (i.e. a patch that's on will go both on and off)
-      if (dist.H > 1){A[i+1,j+1]<-0} #then the infinitesimal transition rate is 0 
+  #REPLACING Austin's Algorithm for creating the generator matrix to optimize speed and memory usage and allow us to calculate the QED for larger numbers of patches. Basically, The generator matrix has a Block Toeplitz Structure and therefore can be built iteratively from a series of characteristic Toeplitz matrices. This saves time calculating each possible state transition and the rate at which each transition occurs and instead contructs the generator matrix according to the pattern by which it grows for each patch added to the system.
+  
+  #there are 4 base transitions that can occur
+  #1. a patch that was off can turn on
+  #2. a patch that was on can turn off
+  #3. a patch that was on can stay on
+  #4. a patch that was off can stay off
+  #this creates the first base toeplitz matrix 
+  if (n.patches==2){
+    A<-matrix(0,4,4) # a 4 by 4
+    upperTriangle(A, diag=FALSE, byrow=FALSE) <- r.on #where the upper triangle of transitions is to at least one patch being on
+    lowerTriangle(A, diag=FALSE, byrow=FALSE) <- r.off #and the lower is to at least patches being off
+    revdiag(A)<-0 #both patches can't go off or on at the same time
+    diag(A)<--rowSums(A) #since this is a CTMC (therefore transitions are instantaneous) rows must sum to 0 and therefore transitions out of static states happen at a rate equal to - the sum across rows
+    A[1,]<-0 #since it's an absorbing matrix the first row corresponding to all patches off has no rates of transition out of this state
+    A <- Matrix(A, sparse=TRUE) #setting our matrix to be sparse
+  } else { #if there are only 2 patches the generator matrix is just composed of this base toeplitz matrix A but for each additional patch 4 possible transitions x each of the previously possible transitions excluding that single patch are added)
+    A<-matrix(0,4,4) #thus, we start with that base toeplitz matrix for two patches
+    upperTriangle(A, diag=FALSE, byrow=FALSE) <- r.on
+    lowerTriangle(A, diag=FALSE, byrow=FALSE) <- r.off
+    revdiag(A)<-0
+    A <- Matrix(A, sparse=TRUE)
+    #the offset diagonal toeplitz matrices iteratively scaling as patches are added iteratively as follows
+    for (n in 2:(n.patches-1)){ #for each patch excluding the added patch
+      r.on.diag<-bandSparse(2^(n),2^(n),0,list(rep(r.on, 2^n+1))) #a sparse diagonal matrix of transitions to all other states from that patch being on is added
+      r.off.diag<-bandSparse(2^(n),2^(n),0,list(rep(r.off, 2^n+1))) #a sparse diagonal matrix of transitions to all other states from that patch being off is added
+      #Make a toeplitz matrix of those 3 toeplitz matrices by binding them appropiately together
+      A1<-cbind(A, r.on.diag) 
+      A2<-cbind(r.off.diag, A)
+      A<-rbind(A1, A2)
     }
+    diag(A)<--rowSums(A) #ensure again that the rows sum to 0 with the negative sum on the diagonal
+    A[1,]<-0 #again, since it's an absorbing matrix the first row corresponding to all patches off has no rates of transition out of this state
   }
   #this provides us with the infinitessimal generator matrix A 
   G.mat<-(A)
-  
-  #Using Scipy to store our matrices/perform matrix operations using less memory
-  #py_run_string("import numpy as np")
-  repl_python()
-  import numpy as np
-  from scipy import Sparse
-  from scipy.stats import uniform
-  csc_matrix(G.mat)
-  exit
+  #G.mat
   
   #C.submat is the submatrix corresponding to the transient states (i.e. on to off or off to on 
   #(not staying on or turning off))
   C.submat<-G.mat[2:2^(n.patches),2:2^(n.patches)]
+  #sparse_C <- as(C.submat, "sparseMatrix")
+  #print(C.submat)
+  
   #the negetive inverse of C gives us the fundamental matrix N=(I-Q)^-1, 
   #which gives the ratio of means distribution
-  fundamental.matrix<--inv(C.submat)
+  fundamental.matrix<--solve(C.submat) #solve gives the inverse of a matrix *not inv*
   
   #from C we can easily calculate the quasi equilibrium distribution 
   #and time to absorption using the eigenvectors and eigenvalues of the matrix
@@ -94,6 +90,6 @@ quasi.eq<-function(n.patches, r.on, r.off){
   for (i in 1:2^n.patches-1){
     ratio.of.means.dist[i,]<-fundamental.matrix[i,]/sum(fundamental.matrix[i,])}
   
-  print(G.mat)
+  #print(G.mat)
   return(list(QED.dist=QED.dist, T.absorp=T.absorp, rate.comparison=rate.comparison, ratio.of.means.dist=ratio.of.means.dist))
 }

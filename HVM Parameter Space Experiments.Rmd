@@ -1,0 +1,115 @@
+---
+title: "HVM Parameter Space Experiments"
+output: html_notebook
+---
+
+
+```{r}
+rm(list=ls()) #clear the workspace
+library("ggplot2")
+library("pracma")
+library("deSolve")
+library("RColorBrewer")
+library("colorspace")
+library("wesanderson") #SUPER NICE COLOUR SCHEMES!
+library("ggthemes")
+library("tidyverse")
+setwd("C:/Users/abuga/OneDrive/Desktop/DeepSeaVents-master")
+source("quasi_eq_func_w_scipy.r")
+source("CTMC_func.r")
+source("SRLM_ODE_func.r")
+source("at_equilibrium_rootfunc.r")
+source("dispersal_kernel_func.r")
+source("CTMC_and_SRLM_func.r")
+source("lambda_M_func.r")
+source("metapop_size_at_QED.r")
+source("create_landscape_func.r")
+```
+
+Let's check for what ratios of r.on to r.off r.con < 1, to know the parameter space we can expect the QED to be appropiate in for a given number of patches:
+
+Starting with 10 patches:
+```{r}
+#takes < 10 min to run
+r.offs<-c(0.000001,0.00001,0.0001,0.001,0.01,0.1,1,10,100,1000,10000,100000)
+for (i in 1:length(r.offs)){
+  QED<-quasi.eq(n.patches=10, r.on=1, r.off=r.offs[i])
+  T.absorp<-QED[[2]]
+  print(mean(T.absorp))
+  r.con<-QED[[3]]
+  if (r.con < 1 ){
+    print(r.offs[i])
+  }
+}
+```
+
+ok so breaks at r.off 100x greater than r.on but let's just check out what that one looks like
+to see things just beyond the limits
+```{r}
+QED<-quasi.eq(n.patches=10, r.on=1, r.off=100)
+QED[[4]]
+```
+Yup. Nothing usefull so for 10 patches let's keep below:
+r.off 10x r.on
+
+for 5 patches:
+```{r}
+#pretty much instaneous
+r.offs<-c(0.000001,0.00001,0.0001,0.001,0.01,0.1,1,10,100,1000,10000,100000)
+for (i in 1:length(r.offs)){
+  QED<-quasi.eq(n.patches=5, r.on=1, r.off=r.offs[i])
+  T.absorp<-QED[[2]]
+  print(mean(T.absorp))
+  r.con<-QED[[3]]
+  if (r.con < 1 ){
+    print(r.offs[i])
+  }
+}
+```
+so gotta keep below r.off = r.on
+T.absorp gets down to just over 1000 so might be actually be possible to simulate until absorption when r.off = r.on
+
+```{r}
+QED<-quasi.eq(n.patches=5, r.on=1, r.off=10)
+QED[[4]]
+```
+can get ratio of means distribution so might be able to use/explore with that
+
+for 2 patches:
+```{r}
+#pretty much instaneous
+r.offs<-c(0.000001,0.00001,0.0001,0.001,0.01,0.1,1,10,100,1000,10000,100000)
+for (i in 1:length(r.offs)){
+  QED<-quasi.eq(n.patches=2, r.on=1, r.off=r.offs[i])
+  T.absorp<-QED[[2]]
+  print(mean(T.absorp))
+  r.con<-QED[[3]]
+  if (r.con < 1 ){
+    print(r.offs[i])
+  }
+}
+```
+Same same. but can also definitely simulate to T.absorp since it get's so low :)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
