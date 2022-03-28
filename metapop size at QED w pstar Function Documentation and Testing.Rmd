@@ -10,7 +10,7 @@ This function finds the metapopulation size at equilibrium, given a species with
 ```{r}
 #Finds the equilibrium metapopulation size for each configuration
 ###############################################################################
-metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r1, r2){
+metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r.on, r.off){
   
   #calculate the extinction rate for each patch
   #extinction.rates<-e.rate/areas #if want this to be patch dependent
@@ -54,7 +54,7 @@ metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.re
     }
   }
   #get the time-averaged metapopulation sizes
-  QED.output<-quasi.eq(n.patches, r1, r2)
+  QED.output<-quasi.eq(n.patches, r.on, r.off)
   QED<-QED.output[[1]]#QED distribution
   T.absorp<-QED.output[[2]]#Time to absorption
   #weighted.metapop.size<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
