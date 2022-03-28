@@ -60,7 +60,7 @@ CTMC.SRLM<-function(total.trans, landscape, e.rate, c.rate, alpha, gamma, epsilo
     #3.2 CALCULATE THE TIME TO THE NEXT TRANSITION
     #select the time until transition (exponential, with mean 1/rate.sum)
     rate.sum<-sum(rate.vec)
-    tau<-rexp(1, 1/rate.sum)
+    tau<-rexp(1, rate.sum)
     #tau<-1000 #for test purposes ONLY!!!
     
     #3.3 RECORD THE TIME OF EACH TRANSITION & how many transitions have occured
@@ -144,14 +144,10 @@ CTMC.SRLM<-function(total.trans, landscape, e.rate, c.rate, alpha, gamma, epsilo
       #within which the random value fell, is on
       config[unif.val<=upper & unif.val>lower]<-0 #turn it off
     } else {config[unif.val<=upper & unif.val>lower]<-1} #otherwise, turn it on
-    print(config)
     
     #3.5 A) set the new initial conditions
     new.ICs<-as.numeric(as.character(output[length(output[,1]),-1])) #to be the end-values from the SRLM
     new.ICs[config==0]<-0 #but zero if a patch is now off
-    
-    print(t)
-    print(config)
   }
   end.t<-t #time to absorption or simulation end
   return(list(sim.data=sim.data, configs.data=configs.data))

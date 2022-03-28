@@ -1,16 +1,4 @@
----
-title: "metapop.size.at.QED Documentation and testing"
-output: html_notebook
----
-
-This function finds the metapopulation size at equilibrium, given a species with a within patch extinction rate (e.rate), patch colonization rate (c.rate), extent to which it's dispersal is directional due to currents (gamma), extent to which the patches are connected by currents (epsilon), whether or not self recruitment can occur at a patch (self rec) and 1/(average dispersal distance) (alpha), for each landscape configuration. Then weights our expected metapopulation size at equilibrium by the time spent in (and/or probability of) that configuration at the calculated QED given a number of patches (N) turning on at rate r1 and off at rate r2.
-
-
-
-```{r}
-#Finds the equilibrium metapopulation size for each configuration
-###############################################################################
-metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r.on, r.off, QED){
+metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r1, r2){
   #setting up all our parameters
   ##########################################
   n.patches<-length(landscape$patch.ID)
@@ -97,13 +85,11 @@ metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.re
     }
   }
   #get the time-averaged metapopulation sizes
-  QED.output<-QED
-  dom.left<-QED.output[[1]]#QED distribution
+  QED.output<-quasi.eq(n.patches, r1, r2)
+  QED<-QED.output[[1]]#QED distribution
   T.absorp<-QED.output[[2]]#Time to absorption
-  weighted.metapop.size<-dot(dom.left,metapop.size[2:2^n.patches])
+  #weighted.metapop.size<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
+  #should actually be the geometric mean
+  weighted.metapop.size<-exp(dot(QED,log(metapop.size[2:2^n.patches])))
   return(weighted.metapop.size)
 }
-```
-
-TESTING
-To be added...

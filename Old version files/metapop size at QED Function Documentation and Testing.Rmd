@@ -11,11 +11,39 @@ This function finds the metapopulation size at equilibrium, given a species with
 #Finds the equilibrium metapopulation size for each configuration
 ###############################################################################
 metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r.on, r.off){
+  #setting up all our parameters
+  ##########################################
+  n.patches<-length(landscape$patch.ID)
+  x.coord<-landscape$x.coord
+  y.coord<-landscape$y.coord
+  areas<-landscape$areas
   
   #calculate the extinction rate for each patch
-  #extinction.rates<-e.rate/areas #if want this to be patch dependent
+  extinction.rates<-e.rate/areas 
   #calculate delta
   delta<-e.rate/c.rate
+  
+  # construct the distance matrix
+  dist.mat<-matrix(rep(0,n.patches*n.patches),n.patches,n.patches)
+  for (i in 1:n.patches){
+    for (j in 1:n.patches){
+      dist.mat[i,j]<-sqrt((x.coord[i]-x.coord[j])^2+(y.coord[i]-y.coord[j])^2)
+    }
+  }
+  #CHECK: dist.mat
+  
+  #Getting the f(dij) values to plug into the rhs
+  f.vals<-disp.kernel(dist.mat,alpha,gamma,epsilon,self.rec,n.patches)
+  #CHECK: f.vals
+  f.vals<-as.vector(f.vals)
+  f.names<-matrix(rep(NA,n.patches*n.patches),n.patches,n.patches)
+  for (i in 1:n.patches){
+    for (j in 1:n.patches){
+      f.names[i,j]<-paste0("f.vals",i,j)
+    }
+  }
+  f.names<-as.vector(f.names)
+  #################################################
   
   #go through each configuration and figure out whether it is stable,
   #and figure out the equilibrium metapopulation size
@@ -44,13 +72,28 @@ metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.re
       ####################################################
       landscape.config<-landscape[config!=0,]
       lambda.M[i+1]<-get.lambda.M(landscape.config, alpha, gamma, epsilon, self.rec, e.rate, c.rate) 
-
       #calculate the persistence capacity within that configuration
       if(lambda.M[i+1]<delta){metapop.size[i+1]<-0 #if the persistence capacity is
       #below the extinction threshold, then the metapopultion is extinct, set size = 0
       } else {
-        metapop.size[i+1]<-pstar.function(landscape.config, alpha, delta, iterations=1000)
-        }
+        parameter.names<-c("n.patches", "c.rate", "self.rec",
+                           rep(paste0("extinction.rates",1:n.patches)),
+                           rep(paste0("x.coord",1:n.patches)),
+                           rep(paste0("y.coord",1:n.patches)),
+                           rep(paste0("areas",1:n.patches)),
+                           rep(paste0("config",1:n.patches))
+                           ,f.names)
+        parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,areas,config,f.vals)
+        parameters<-list(c(setNames(parameter.values, parameter.names)))
+        IC.names<-rep(paste0("p",1:n.patches))
+        IC.values<-new.ICs
+        p<-setNames(IC.values,IC.names)
+        SRLM.output<-ode(SRLM.ODE, parameters,times=seq(0,3000,1),y=new.ICs, rootfun=at.equilibrium)
+        SRLM.output<-data.frame(SRLM.output)
+        end.p<-as.numeric(as.character(SRLM.output[length(SRLM.output$time),-1]))
+        metapop.size[i+1]<-dot(areas,end.p)
+        tot.stable<-tot.stable+1
+        in.stable[config==1]<-in.stable[config==1]+1}
     }
   }
   #get the time-averaged metapopulation sizes
