@@ -1,6 +1,6 @@
 #Finds the equilibrium metapopulation size for each configuration
 ###############################################################################
-lm.n.pstar.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r1, r2){
+lm.n.pstar.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r.on, r.off){
   
   #calculate the extinction rate for each patch
   #extinction.rates<-e.rate/areas #if want this to be patch dependent
@@ -39,7 +39,7 @@ lm.n.pstar.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, al
     }
   }
   #get the time-averaged metapopulation sizes
-  QED.output<-quasi.eq(n.patches, r1, r2)
+  QED.output<-quasi.eq(n.patches, r.on, r.off)
   QED<-QED.output[[1]]#QED distribution
   T.absorp<-QED.output[[2]]#Time to absorption
   a.weighted.metapop.size<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
@@ -56,7 +56,7 @@ lm.n.pstar.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, al
 #n.patches<-length(landscape$patch.ID) #for future use
 #
 #test<-lm.n.pstar.QED(landscape=landscape, e.rate=0.1, c.rate=0.2, gamma=0, epsilon=n.patches,
-#                     self.rec=1, alpha=10, r1=1/100000, r2=1/100)
+#                     self.rec=1, alpha=10, r.on=1/100000, r.off=1/100)
 #dewoody<-function(e.rate, c.rate, r.on, r.off){
 #  dw.lm<-(e.rate+r.off)/(c.rate*(r.on/(r.on+r.off))) #Pr(patch can colonize another?)
 #  s<-r.on/(r.on+r.off) #pr(patch is on)

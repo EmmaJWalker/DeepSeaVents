@@ -96,6 +96,7 @@ CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon,
   time.limit<-total.t #you can remove the time.limit if you want
   while (sum(config)>0 & t<time.limit) { #while at least one patch remains on
     
+        #####################################################    
         #3.1 SET THE RATES OF TRANSITION FOR EACH PATCH
         rate.vec<-rep(NA, n.patches) #construct a vector of transition rates 
         #depending on initial configuration
@@ -107,6 +108,7 @@ CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon,
         rate.sum<-sum(rate.vec)
         tau<-rexp(1, 1/rate.sum) #tau = time until next transition
         #tau<-1000 #for test purposes ONLY!!!
+        ########################################################
         
         #3.3 RECORD THE TIME OF EACH TRANSITION
         if (sum(tau.times) == 0){

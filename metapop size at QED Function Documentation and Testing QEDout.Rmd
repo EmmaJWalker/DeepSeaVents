@@ -10,7 +10,7 @@ This function finds the metapopulation size at equilibrium, given a species with
 ```{r}
 #Finds the equilibrium metapopulation size for each configuration
 ###############################################################################
-metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r1, r2, QED){
+metapop.size.at.QED<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r.on, r.off, QED){
   #setting up all our parameters
   ##########################################
   n.patches<-length(landscape$patch.ID)
