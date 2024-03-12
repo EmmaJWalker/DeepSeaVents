@@ -1,0 +1,377 @@
+---
+title: "CTMC and SRLM Function Documentation and Testing"
+output: html_notebook
+---
+
+```{r}
+rm(list=ls()) #clear the workspace
+```
+
+This function simulates the combined CTMC+SRLM for the habitat dynamics and metapopulation dynamics respectively. The CTMC portion is equivalent to the "CTMC function", and the "SRLM function" is called on to run the ODEs in between the habitat configuration changes. See these files for further details on each of these model components respectively and the parameters associated with each. 
+
+
+***It follows the following Algorithm:***
+
+**1) Set up all our parameters for the SRLM's ODEs:**
+Set the parameter values for the SRLM's ODEs, including calculating extinction rates based on patch areas, delta (the ratio of e/c) and the dispersal kernel using the "disp.kernel" function
+
+**2) Set the initial conditions for the whole simulation:**
+We begin with a 50/50 chance any given patch is on or off initially and a 50% occupancy of the patches that are on
+
+**3) Begin our simulation:**
+Begin simulations at t=0 and run them until absorption (all patches off) or the time limit is reached (time.limit). 
+Apart from the addition of the SRLM ODEs to be solved over the interval between transitions (steps included in 3.3 A and 3.5 A) the following code is identical to in the "CTMC fUnction"
+
+  **3.1) Set the rates of transition for each patch**
+  Set the rate each patch should turn on or off at according to whether they are on or off. Patches that are on turn off at rate r.off and patches that are off turn on at rate r.on.
+
+  **3.2) Calculate the time to the next transition**
+  Calculate the time until the next configuration transition should occur (tau). For a CTMC tau is exponentially distributed with mean 1/(the sum of all the rates of transition)
+
+  **3.3) Record the time between each transition**
+  We would like to keep track of the time between each transition takes place at. We do so in a vector called tau.times. NOTE: We don't know how long this vector needs to be and so to be safe this vector is just being appended with new values each time (can slow a program down/eat memory -though memory not an issue on the server I'll run on). Probably it will be shorter than timesteps but because this is a continuous time model though multiple transitions don't happen "at once" the time to the next transition could occur within the same integer timestep for which we are recording events.
+
+      **3.3 A) Solve the SRLM ODEs using the initial conditions over this time interval between transitions**
+      
+        **3.3 A1) Create a named list of parameters for the SRLM ODEs**
+        
+        **3.3 A2) Set the initial conditions for the SRLM ODEs**
+        
+        **3.3 A3) set time interval and step size to solve over**
+        
+        **3.3 A4) Solve the SRLM ODEs over the time interval between transitions**
+        
+        **3.3 A5) Check if equilibrium was reached before the end of the time interval between transitions was reached and append the equilibrium occupancy as the occupancy at the end of that time interval**
+        
+        **3.3 A6) Shift the time by the already accumulated time (t) and append to past values**
+
+  **3.4) Update the time elapsed in the simulation** 
+  Update the time in the simulation to when this transition should occur (that is current t+tau)
+
+  **3.5) Make the transition**
+  Pick a random number between 1 and 0. Then break the range from 0 to 1 into intervals porportional to the probability each path should turn on or off.
+  ie. for a config (0 1 0) the rate.vec is (r.on, r.off, r.on) so intervals porportional to the probability each patch should turn on or off can be defined by cumulative sum of the proportions of time each patch should turn on or off (r.on/(2r.on+r.off), (r.on/(2r.on+r.off))+(r.off/(2r.on+r.off)),(r.on/(2r.on+r.off))+(r.off/(2r.on+r.off))+r.on/(2r.on+r.off))
+  Print the new configuration so we can check A) one patch that was either on or off turned either on or off and B) that the simulation is running through the transitions smoothly and timely
+  
+      ** 3.5 A) Set the new intial conditions for the SRLM over the next time interval**
+
+
+
+```{r}
+CTMC.SRLM<-function(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon, 
+                    self.rec, r.on, r.off){
+  
+  #1) SETTING UP ALL OUR PARAMETERS FOR THE SRLM's ODEs
+  #########################################################################################
+  n.patches<-length(landscape$patch.ID)
+  x.coord<-landscape$x.coord
+  y.coord<-landscape$y.coord
+  areas<-landscape$areas
+  #calculate the extinction rate for each patch
+  extinction.rates<-e.rate/areas 
+  #calculate delta
+  delta<-e.rate/c.rate
+  # construct the distance matrix
+  dist.mat<-matrix(rep(0,n.patches*n.patches),n.patches,n.patches)
+  for (i in 1:n.patches){
+    for (j in 1:n.patches){
+      dist.mat[i,j]<-sqrt((x.coord[i]-x.coord[j])^2+(y.coord[i]-y.coord[j])^2)
+    }
+  }
+  #CHECK: dist.mat
+  #Getting the f(dij) values to plug into the rhs
+  f.vals<-disp.kernel(dist.mat,alpha,gamma,epsilon,self.rec,n.patches)
+  #CHECK: f.vals
+  f.vals<-as.vector(f.vals)
+  f.names<-matrix(rep(NA,n.patches*n.patches),n.patches,n.patches)
+  for (i in 1:n.patches){
+    for (j in 1:n.patches){
+      f.names[i,j]<-paste0("f.vals",i,j)
+    }
+  }
+  f.names<-as.vector(f.names)
+  #########################################################################################
+  
+  #2) SET THE INITIAL CONDITIONS
+  #########################################################################################
+  #randomly set initial habitat configuration of patches on/off
+  config<-rbinom(n.patches, 1, 0.5)
+  #initial occupancy levels (all on patches fully occupied)
+  new.ICs<-1*config
+  #configs.data<-config
+  #########################################################################################
+  
+  #3) BEGIN THE SIMULATION
+  #########################################################################################
+  t<-0
+  tau<-0
+  tau.times<-0 #no initial time until transition
+  time.limit<-total.t #you can remove the time.limit if you want
+  while ((sum(config)>0) & (t+tau<=time.limit)) { #while at least one patch remains on 
+    #and we are within the time limit
+    
+    #3.1 SET THE RATES OF TRANSITION FOR EACH PATCH
+    ###############################################
+    rate.vec<-rep(NA, n.patches) #construct a vector of transition rates 
+    #depending on initial configuration
+    rate.vec[config==0]<-r.on #if the patch is off set it to turn on at rate r.on
+    rate.vec[config==1]<-r.off #if the patch is on set it to turn off at rate r.off
+    ###############################################
+    
+    #3.2 CALCULATE THE TIME TO THE NEXT TRANSITION
+    #select the time until transition (exponential, with mean 1/rate.sum)
+    #####################################################################
+    rate.sum<-sum(rate.vec)
+    tau<-rexp(1, rate.sum)
+    #tau<-1000 #for test purposes ONLY!!!
+    #####################################################################
+    
+    #3.3 RECORD THE TIME OF EACH TRANSITION
+    #######################################
+    if (sum(tau.times) == 0){
+      tau.times<-tau} else{
+      tau.times<-c(tau.times, tau)}
+    #######################################
+    
+    #3.3 A) SOLVE THE SRLM BASED ON THE INITIAL CONDITIONS BETWEEN NOW AND TAU
+    #run the SRLM for the specified time tau, using initial conditions
+    #new.ICs and relevant parameters
+    #patches for which the "config=0" are left out
+    #making sure "off" patches don't colonize or get colonized in the rhs of the ODE system
+    #########################################################################################
+    
+    #3.3 A1) CREATE A NAMED LIST OF PARAMETERS FOR THE SRLM ODEs
+    #creating a list of the parameters we calculated to be passed to our ODE function
+    ############################################
+    parameter.names<-c("n.patches", "c.rate", "self.rec",
+                       rep(paste0("extinction.rates",1:n.patches)),
+                       rep(paste0("x.coord",1:n.patches)),
+                       rep(paste0("y.coord",1:n.patches)),
+                       rep(paste0("areas",1:n.patches)),
+                       rep(paste0("config",1:n.patches))
+                       ,f.names)
+    parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,areas,config
+                        ,f.vals)
+    parameters<-list(c(setNames(parameter.values, parameter.names)))
+    ###########################################
+    
+    #3.3 A2) Setting our initial values for the SRLM ODE
+    ###########################################
+    IC.names<-rep(paste0("p",1:n.patches))
+    IC.values<-new.ICs
+    p<-setNames(IC.values,IC.names)
+    ###########################################
+    
+    #3.3 A3) set time interval and step size to solve over**
+    ##########################################FASTER
+    if(tau<1){ #if tau is less than one
+      step.length<-tau/2 #let the step length for the SRLM be half of tau, 
+    }else{step.length<-1} #otherwise just use a step length of 1
+    endt<-tau 
+    if (tau>time.limit){ #if the time till the next transition will exceed our simulation time limit
+      endt<-time.limit-t #solve the model only up until that time limit
+    }
+    ##########################################FASTER
+    
+    #3.3 A4) Solve the SRLM ODEs over the time interval between transitions
+    #######################################################################################################
+    output<-ode(y=new.ICs, parms=parameters, times=seq(0, endt, step.length), func=SRLM.ODE,
+                rootfun=at.equilibrium)
+    #######################################################################################################
+    
+        
+        #3.3 A5) Check if equilibrium was reached before the end of the time interval between 
+    #transitions was reached and append the equilibrium occupancy as the occupancy at the end 
+    #of that time interval
+    #########################################
+      tail(output, n = 2) #look at the end of the simulation
+      #calculate the final change in patch occupancy
+      x<-output[length(output[,1]),-1]-output[length(output[,1])-1,-1] 
+      if (Norm(x)<=(1e-4)){ #if the last change in occupancy was less than 1e-4
+        #the SRLM reached equilibrium before endt, ending the solver early to save on computation
+        #so we shall append the output with that same equilibrium occupancy at endt
+        output<-rbind(output, c(endt, output[length(output[,1]),-1]))
+      }
+      ######################################
+    
+    #3.3 A6) Shift the time by the already accumulated time (t) and append to past values
+    #############################################################################
+    output<-data.frame(output)
+    output$time<-output$time+t
+    if (t==0){sim.data<-output
+    configs.data<-c(t, config)}
+    if (t!=0){sim.data<-rbind(sim.data, output)
+    configs.data<-rbind(configs.data, c(t, config))}
+    ############################################################################
+    
+    #3.4 UPDATE THE TIME ELAPSED IN SIMULATION
+    ##########################################
+    t<-t+tau
+    ##########################################
+    
+    #3.5 MAKE THE TRANSITION
+    ######################################################################################################
+    cum.rate<-cumsum(rate.vec/rate.sum) #calculate the cumulative rate of transition
+    #define intervals between 0 and 1 by the proportion of time each patch should transition
+    upper<-cum.rate
+    lower<-c(0,cum.rate[-n.patches])
+    unif.val<-runif(1, min=0, max=1) #pick a random number between 0 and 1
+    if(config[unif.val<=upper & unif.val>lower]==1){ #if the patch lying on the selected interval 
+      #within which the random value fell, is on
+      config[unif.val<=upper & unif.val>lower]<-0 #turn it off
+    } else {config[unif.val<=upper & unif.val>lower]<-1} #otherwise, turn it on
+    #print(config)
+    ######################################################################################################
+    
+    #3.5 A) set the new initial conditions
+    ######################################################################################################
+    new.ICs<-as.numeric(as.character(output[length(output[,1]),-1])) #to be the end-values from the SRLM
+    new.ICs[config==0]<-0 #but zero if a patch is now off
+    ######################################################################################################
+    
+    #for testing only
+    #print(t)
+    #print(config)
+    
+  }
+  end.t<-t #time to absorption or simulation end
+  return(list(sim.data=sim.data, configs.data=configs.data))
+}
+```
+
+TESTING
+
+Load the necessary packages and functions
+```{r}
+library("pracma")
+library("deSolve")
+#setwd("C:/Users/abuga/OneDrive/Desktop/HVMcode")
+source("create_landscape_func.r")
+source("SRLMODE_func.r")
+source("at_equilibrium_rootfunc.r")
+source("dispersal_kernel_func.r")
+source("lambda_M_func.r")
+```
+
+
+Setting up our parameters
+```{r}
+total.t<-200#10 #total time to run the model (optional; could run to absorption)
+landscape<-create.landscape(n.patches=10, landscape.type="linear", landscape.limit=100, 
+                            patch.distribution="uniform", areas.distribution="uniform", areas.limit=1, 
+                            clustering.iters=0)
+n.patches<-length(landscape$patch.ID)
+e.rate<-0.1#0.3
+c.rate<-4#0.5
+alpha<-0.1 #inverse of the mean dispersal distances (negetive exponential)
+#network structure parameters:
+gamma<-0
+epsilon<-n.patches #1
+self.rec<-1
+#rates of vents turning off to on and on to off respectively
+r.on<-0.02
+r.off<-0.01
+####################################################################################################
+Initial.Lm<-20
+#first let's scale our e.rate and c.rate to ensure a high enough persistence capacity the
+#metapopulation has the opportunity to experience some growth
+delta<-Initial.Lm/(get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon))
+delta
+e.rate<-1/delta
+c.rate<-1
+lambda.M<-get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon)*delta
+lambda.M
+```
+
+Running our simulation
+```{r}
+sim.data<-CTMC.SRLM(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon, self.rec, r.on, r.off)
+  sim.data<-sim.data[[1]]
+```
+
+If we wanted to weight the occupancy of patches by the size (carrying capacity of the patch) 
+```{r}
+#weight the occupancy values by area and plot metapop size over time
+area.weights<-landscape$areas/sum(landscape$areas)
+metapop.size<-sim.data[,-1]*area.weights 
+```
+
+But we also want to plot just the total occupancy across the metapopulation so let's sum the occupancies of each patch
+```{r}
+metapop.size<-rowSums(sim.data[,-1]) #*area.weights) #<-if we wanted to including weighting by patch areas
+time<-sim.data$time
+```
+
+Make a plot looking at the metapopulation size over time
+```{r}
+plot(time, metapop.size)
+```
+
+Now doing this starting from QED:
+```{r}
+source("CTMC_and_SRLM_func_from_QED.r")
+source("QED_metrics_func.r")
+source("PStar_func.r")
+source("quasi_eq_sparse_func.r")
+```
+
+Setting up our parameters
+```{r}
+total.t<-200#10 #total time to run the model (optional; could run to absorption)
+landscape<-create.landscape(n.patches=10, landscape.type="linear",
+                            landscape.limit=100, patch.distribution="uniform",
+                            areas.distribution="uniform", areas.limit=1,
+                            clustering.iters=0)
+n.patches<-length(landscape$patch.ID)
+e.rate<-0.1#0.3
+c.rate<-4#0.5
+alpha<-0.1 #inverse of the mean dispersal distances (negetive exponential)
+#network structure parameters:
+gamma<-0
+epsilon<-n.patches #1
+self.rec<-1
+#rates of vents turning off to on and on to off respectively
+r.on<-0.02
+r.off<-0.01
+####################################################################################################
+Initial.Lm<-20
+#first let's scale our e.rate and c.rate to ensure a high enough persistence capacity the
+#metapopulation has the opportunity to experience some growth
+delta<-Initial.Lm/(get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon))
+delta
+e.rate<-1/delta
+c.rate<-1
+lambda.M<-get.lambda.M(landscape=landscape, alpha=alpha, e.rate=e.rate, c.rate=c.rate, self.rec=self.rec, gamma=gamma, epsilon=epsilon)*delta
+lambda.M
+```
+Obtaining of QED metrics
+```{r}
+test<-QED.metrics(landscape=landscape, e.rate=0.1, c.rate=0.2, gamma=0, epsilon=n.patches, self.rec=1, alpha=10, r.on=1/100000, r.off=1/100)
+initial.n<-test[[4]]
+initial.size<-test[[1]]
+```
+
+Running our simulation
+```{r}
+sim.data<-CTMC.SRLM(total.t, landscape, e.rate, c.rate, alpha, gamma, epsilon, self.rec, r.on, r.off, initial.size,
+                    initial.n)
+  sim.data<-sim.data[[1]]
+```
+
+If we wanted to weight the occupancy of patches by the size (carrying capacity of the patch) 
+```{r}
+#weight the occupancy values by area and plot metapop size over time
+area.weights<-landscape$areas/sum(landscape$areas)
+metapop.size<-sim.data[,-1]*area.weights 
+```
+
+But we also want to plot just the total occupancy across the metapopulation so let's sum the occupancies of each patch
+```{r}
+metapop.size<-rowSums(sim.data[,-1]) #*area.weights) #<-if we wanted to including weighting by patch areas
+time<-sim.data$time
+```
+
+Make a plot looking at the metapopulation size over time
+```{r}
+plot(time, metapop.size)
+```

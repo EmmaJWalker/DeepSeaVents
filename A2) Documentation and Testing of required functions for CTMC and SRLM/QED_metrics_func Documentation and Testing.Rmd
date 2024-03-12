@@ -1,0 +1,101 @@
+---
+title: "metapop.size.at.QED Documentation and testing"
+output: html_notebook
+---
+
+NEEDS TO BE UPDATED WITH THE MOST RECENT VERSION OF THIS FUNCTION!!!
+
+
+This function finds the metapopulation size at equilibrium, given a species with a within patch extinction rate (e.rate), patch colonization rate (c.rate), extent to which it's dispersal is directional due to currents (gamma), extent to which the patches are connected by currents (epsilon), whether or not self recruitment can occur at a patch (self rec) and 1/(average dispersal distance) (alpha), for each landscape configuration. Then weights our expected metapopulation size at equilibrium by the time spent in (and/or probability of) that configuration at the calculated QED given a number of patches (N) turning on at rate r1 and off at rate r2.
+
+
+
+```{r}
+#Finds the equilibrium metapopulation size for each configuration
+###############################################################################
+QED.metrics<-function(landscape, e.rate, c.rate, gamma, epsilon, self.rec, alpha, r.on, r.off){
+  
+  n.patches<-length(landscape$patch.ID)
+  
+  #calculate the extinction rate for each patch
+  #extinction.rates<-e.rate/areas #if want this to be patch dependent
+  #calculate delta
+  delta<-e.rate/c.rate
+  
+  lambda.M<-rep(0,2^n.patches)
+  eq.o<-matrix(rep(0,2^(n.patches+1)), ncol=(n.patches), nrow=(2^n.patches))
+  metapop.size<-rep(0,2^n.patches)
+  
+  #1. create a dataframe with all possible configurations
+  #ordered according to the sequence they occur as rows in our transition matrix
+  #NOTE: updated to store these as sparse matrices to save memory :)
+  n<-n.patches
+  all.configs <- Matrix(0, nrow=2^n, ncol=n, sparse=TRUE) #sparse matrix version
+  #all.configs<-matrix(rep(NA, (2^n)*n), nrow=2^n, ncol=n) #no sparse matrix version
+  for (i in 1:n){
+    #if (i==1){BB<-c(0,1) #no sparse vector version
+    if (i==1){BB<-as(c(0,1), "sparseVector") #sparse vector version
+    }else{BB<-c(BB[1:(2^(i-2))],BB,BB[((2^(i-2))+1):(2^(i-1))])}
+    all.configs[,(n-i+1)]<-t(rep(BB,2^(n-i)))}
+  
+  for(i in 1:nrow(all.configs)){
+    if (i==1){
+      #the first row would correspond with the absorbing state 
+      #therefore, the persistence capacity and metapop size for this config should be 0
+      lambda.M[i]<-0
+      metapop.size[i]<-0
+    } else { #otherwise
+      #calculate the persistence capacity in that configuration
+      landscape.config<-landscape[all.configs[i,]!=0,]
+      lambda.M[i]<-get.lambda.M(landscape.config, alpha, gamma, epsilon, self.rec, e.rate, c.rate)*delta
+      if (lambda.M[i] < delta){metapop.size[i]<-0} #if below the persistence threshold, the metapop is expected extinct at equilibrium 
+      else { #otherwise
+        #calculate the equilibrium patch occupancy of each patch
+        eq.o[i,all.configs[i,]!=0]<-pstar.function(landscape.config, alpha, e.rate, c.rate, self.rec, gamma, epsilon, iterations=1000)
+        }
+    }
+    }
+  
+  metapop.size<-rowSums(eq.o) #calculate total metapop size expected at eq in a config
+  
+  #get the time-averaged metapopulation sizes @QED
+  QED.output<-quasi.eq(n.patches, r.on, r.off)
+  QED<-QED.output[[1]]#QED distribution
+  a.weighted.metapop.size<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
+  #should actually be the geometric mean
+  weighted.metapop.size<-exp(dot(QED,log(metapop.size[2:2^n.patches])))
+  weighted.lm<-exp(dot(QED,log(lambda.M[2:2^n.patches])))
+  
+  #get expected number of patches in habitat @QED
+  n.on.in.each.config<-rowSums(all.configs)
+  #geometric mean habitat expected across configurations and time spent in them:
+  exp.n.on<-exp(dot(QED,log(n.on.in.each.config[2:2^n.patches])))
+  
+  return(list(weighted.metapop.size, weighted.lm, a.weighted.metapop.size, exp.n.on, eq.o))
+}
+```
+
+TESTING
+
+Loading functions it depends on:
+```{r}
+source("quasi_eq_sparse_func.r")
+source("create_landscape_func.r")
+source("lambda_M_func.r")
+source("Pstar_func.r")
+```
+
+Creating a landscape:
+```{r}
+landscape<-create.landscape(n.patches=10, landscape.type="linear", landscape.limit=100, 
+                            patch.distribution="uniform", areas.distribution="uniform", areas.limit=1, 
+                            clustering.iters=0)
+n.patches<-length(landscape$patch.ID) #for future use
+```
+
+And checking outputs
+```{r}
+test<-QED.metrics(landscape=landscape, e.rate=0.1, c.rate=0.2, gamma=0, epsilon=n.patches, self.rec=1, alpha=10, r.on=1/100000, r.off=1/100)
+test
+```
+see two patch test case for further documentation an testing

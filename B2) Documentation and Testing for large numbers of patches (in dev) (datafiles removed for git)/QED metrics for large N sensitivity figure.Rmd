@@ -1,0 +1,241 @@
+---
+title: "QED metrics for large N sensitivity figure"
+output: html_notebook
+---
+
+1. Calculating lambda_M_QED and P*QED for a Homogenous landscape and globally dispersing species for a range of r.on and r.off 's:
+```{r}
+#LOADING CODE SPECIFIC PACKAGES:
+library("R.utils") #for int to binary
+library("ggplot2") #for plotting
+library("pracma") #for matrix math
+library("deSolve") #for ode solving
+library("RColorBrewer") #for plotting colours
+library("colorspace") #for plotting colours
+library("ggthemes") #for plotting themes
+library("R.utils") #for integer to binary conversion
+library("dplyr") #for various stuff
+library("gdata") #to get upper triangle of a matrix
+library("lava") #to get the reverse diagonal of a matrix
+library("Matrix") #for sparse matrices
+library("reticulate") #for something...
+library("gtools") #for na.replace
+#LOADING REQUIRED FUNCTIONS
+setwd("C:/Users/Administrator/Desktop/DEC 2022")
+source("create_landscape_func.r") #create.landscape()
+source("CTMC_and_SRLM_func_from_QED.r") #CTMC.SRLM()
+source("dispersal_kernel_func.r") #disp.kernel()
+source("lambda_M_func.r") #get.lambda.M()
+source("QED_metrics_func_in_parallel.r") #QED.metrics()
+source("dewoody_func.r") #dewoody()
+source("Pstar_func.r") #pstar.function()
+source("reduced_quasi_eq_sparse_func.r") #quasi.eq()
+source("SRLMODE_func.r") #SRLM.ODE()
+source("at_equilibrium_rootfunc.r") #at.equilibrium()
+```
+
+Setting the parameters and creating homogenous landscape:
+```{r}
+r.offs<-c(1/100000, 1/10000,1/1000,1/100,1/10)
+r.ons<-c(1/100,1/10,1)
+alphas<-c(1/100,1/10,10) #avg. disp = 1/10 interpatch distance, the interpatch distance and global disp
+n.patches<-15
+landscape.type<-"linear"
+landscape.limit<-100
+patch.distribution<-"uniform"
+areas.distribution<-"uniform"
+areas.limit<-1
+clustering.iters<-0
+
+#CREATING EXPERIMENTAL LANDSCAPES
+landscape<-create.landscape(n.patches=n.patches, landscape.type=landscape.type, landscape.limit=landscape.limit, 
+                            patch.distribution=patch.distribution, areas.distribution=areas.distribution, areas.limit=areas.limit, 
+                            clustering.iters=clustering.iters)
+#print(ggplot(landscape, aes(x.coord,y.coord)) + theme_classic() + geom_point(aes(size = areas))) #plotting
+n.patches<-length(landscape$patch.ID) #for future use
+```
+
+## Step 1 A) calculate lambda_M and p* in every possible config:
+```{r}
+Sys.time()
+# get the calculations necessary for calculating the QED metrics done in parallel for each alpha:
+    for (l in 1:length(alphas)){
+      results<-QED.metrics(landscape=landscape, e.rate=0.1, c.rate=0.2, gamma=0, epsilon=n.patches,
+                           self.rec=1, alpha=alphas[l])
+      #just adding column names to make things nicer in the csv file:
+      lambda.M<-results[,2]
+      lambda.M.delta<-results[,3]
+      metapop.size<-results[,4]
+      n.on<-results[,5]
+      pstar.configs<-results[,6:(5+n.patches)]
+      results<-data.frame(lambda.M, lambda.M.delta, metapop.size, n.on, pstar.configs)
+write.csv(results, file=paste0("step 1 ", n.patches, " patches config metrics alpha_", alphas[l], ".csv"))}
+Sys.time()
+```
+
+## Step 1 B): calculate the QED metrics using that data for all of the r.on and r.off combinations (could be done in parallel too:
+```{r}
+Sys.time()
+for (l in 1:length(alphas)){
+  config.metrics<-read.csv(file=paste0("step 1 ", n.patches, " patches config metrics alpha_", alphas[l], ".csv"))
+  lambda.M<-config.metrics$lambda.M
+  lambda.M.delta<-config.metrics$lambda.M.delta
+  metapop.size<-config.metrics$metapop.size
+  n.on<-config.metrics$n.on
+  pstar.configs<-config.metrics[6:(5+n.patches)]
+  
+  for (j in 1:length(r.offs)){
+    for (k in 1:length(r.ons)){
+      #get reduced QED
+      QED.output<-quasi.eq(n.patches, r.ons[k], r.offs[j])  
+      QED<-QED.output[[1]] #QED distribution
+      #converting the QED of the reduced CTMC to the QED of the full CTMC:
+      n.on.vec<-1:n.patches #vector of all possible number of patches on
+      #(this was just an extra calc for the sake of making the matrices)
+      x<-factorial(n.patches)/(factorial(n.on.vec)*factorial(n.patches-n.on.vec)) #calculating N_choose_k
+      #aka number of different configurations possible with that number of patches on
+      QED<-QED.dist/x #converting the QED to the QED for each configuration rather than for the number of patches on
+      QED<-QED[n.on[2:2^n.patches]]
+      
+      ar.pstar.QED<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
+      #should actually be the geometric mean
+      geom.pstar.QED<-exp(dot(QED,log(metapop.size[2:2^n.patches])))
+      lm.QED.delta<-exp(dot(QED,log(lambda.M.delta[2:2^n.patches])))
+      lm.QED<-exp(dot(QED,log(lambda.M[2:2^n.patches])))
+      pstar.configs<-as.matrix(pstar.configs)
+      #get expected number of patches in habitat @QED
+      #geometric mean habitat expected across configurations and time spent in them:
+      exp.n.QED<-exp(dot(QED,log(n.on[2:2^n.patches])))
+      #saving output:
+      QED.metrics<-data.frame(lm.QED.delta, lm.QED, geom.pstar.QED, ar.pstar.QED, exp.n.QED)
+      write.csv(QED.metrics, paste0("step 1 QED metrics alpha_", alphas[l], " ron_", r.ons[k], " roff_", r.offs[j], ".csv"))
+      write.csv(pstar.configs, paste0("step 1 pstar configs alpha_", alphas[l]," ron_", r.ons[k], " roff_", r.offs[j], ".csv"))
+      write.csv(QED, paste0("step 1 QED ron_", r.ons[k], " roff_", r.offs[j], ".csv"))
+    }
+  }
+}
+Sys.time()
+```
+
+## Step 2 A) calculate delta necessary to scale lambda_M_QED to a common value (arbitrarily we choose 20) for each different dispersal ability in each combination of r.on and r.off, then recalculate lambda_M and p* for each in every possible config using the new delta values from step 2:
+```{r}
+setwd("C:/Users/Administrator/Desktop/DEC 2022")
+Sys.time()
+# get the calculations necessary for calculating the QED metrics done in parallel for each alpha:
+for (l in 1:length(alphas)){
+  for (j in 1:length(r.offs)){
+    for (k in 1:length(r.ons)){
+  metrics<-read.csv(file=paste0("step 1 QED metrics alpha_", alphas[l], " ron_", r.ons[k], " roff_", r.offs[j], ".csv"))    
+  #now let's scale our e.rate and c.rate to ensure a high enough persistence capacity the
+  #metapopulation has the opportunity to experience some growth
+  Initial.Lm<-20
+  delta<-metrics$lm.QED/Initial.Lm
+  e.rate<-delta
+  c.rate<-1
+  
+  Sys.time()
+  results<-QED.metrics(landscape=landscape, e.rate=e.rate, c.rate=c.rate, gamma=0, epsilon=n.patches, self.rec=1, alpha=alphas[l])
+  print(c(alphas[l], r.ons[k], r.offs[j]))
+  
+  #just adding column names to make things nicer in the csv file:
+  lambda.M<-results[,2]
+  lambda.M.delta<-results[,3]
+  metapop.size<-results[,4]
+  n.on<-results[,5]
+  pstar.configs<-results[,6:(5+n.patches)]
+  results<-data.frame(lambda.M, lambda.M.delta, metapop.size, n.on, pstar.configs)
+  Sys.time()
+
+    #get the time-averaged metapopulation sizes @QED
+      QED.output<-quasi.eq(n.patches, r.on, r.off)
+      QED<-QED.output[[1]] #QED distribution
+            #converting the QED of the reduced CTMC to the QED of the full CTMC:
+      n.on.vec<-1:n.patches #vector of all possible number of patches on
+      #(this was just an extra calc for the sake of making the matrices)
+      x<-factorial(n.patches)/(factorial(n.on.vec)*factorial(n.patches-n.on.vec)) #calculating N_choose_k
+      #aka number of different configurations possible with that number of patches on
+      QED<-QED.dist/x #converting the QED to the QED for each configuration rather than for the number of patches on
+      QED<-QED[n.on[2:2^n.patches]]
+      ar.pstar.QED<-dot(QED,metapop.size[2:2^n.patches]) #this is the expected metapop size in a given
+      #configuration x the porportion of time spent in it at QED and summed (therefore the arithmentic mean)
+      #should actually be the geometric mean
+      geom.pstar.QED<-exp(dot(QED,log(metapop.size[2:2^n.patches])))
+      lm.QED.delta<-exp(dot(QED,log(lambda.M.delta[2:2^n.patches])))
+      lm.QED<-exp(dot(QED,log(lambda.M[2:2^n.patches])))
+      pstar.configs<-as.matrix(pstar.configs)
+      #get expected number of patches in habitat @QED
+      #geometric mean habitat expected across configurations and time spent in them:
+      exp.n.QED<-exp(dot(QED,log(n.on[2:2^n.patches])))
+      
+      #saving output:
+      QED.metrics<-data.frame(lm.QED.delta, lm.QED, geom.pstar.QED, ar.pstar.QED, exp.n.QED)
+      write.csv(QED.metrics, paste0("step 2 QED metrics alpha_", alphas[l], " ron_", r.ons[k], " roff_", r.offs[j], ".csv"))
+      write.csv(pstar.configs, paste0("step 2 pstar configs alpha_", alphas[l]," ron_", r.ons[k], " roff_", r.offs[j], ".csv"))
+      write.csv(QED, paste0("step 2 QED ron_", r.ons[k], " roff_", r.offs[j], ".csv"))
+  }}}
+Sys.time()
+```
+
+
+
+```{r}
+rm(list=ls()) #clear the workspace
+
+#LOADING CODE SPECIFIC PACKAGES:
+library("R.utils") #for int to binary
+library("ggplot2") #for plotting
+library("pracma") #for matrix math
+library("deSolve") #for ode solving
+library("RColorBrewer") #for plotting colours
+library("colorspace") #for plotting colours
+library("ggthemes") #for plotting themes
+library("R.utils") #for integer to binary conversion
+library("dplyr") #for various stuff
+library("gdata") #to get upper triangle of a matrix
+library("lava") #to get the reverse diagonal of a matrix
+library("Matrix") #for sparse matrices
+library("reticulate") #for something...
+library("gtools") #for na.replace
+#LOADING REQUIRED FUNCTIONS
+setwd("C:/Users/Administrator/Desktop/DEC 2022")
+source("BigintToBin_func.r") #create.landscape()
+source("create_landscape_func.r") #create.landscape()
+source("CTMC_and_SRLM_func_from_QED.r") #CTMC.SRLM()
+source("dispersal_kernel_func.r") #disp.kernel()
+source("lambda_M_func.r") #get.lambda.M()
+#source("QED_metrics_func_for_large_N_BigintToBin.r") #QED.metrics()
+source("dewoody_func.r") #dewoody()
+source("Pstar_func.r") #pstar.function()
+source("reduced_quasi_eq_sparse_func2.r") #quasi.eq()
+source("SRLMODE_func.r") #SRLM.ODE()
+source("at_equilibrium_rootfunc.r") #at.equilibrium()
+#source("single_parallel_batch_func.r") #single.batch()
+```
+
+
+```{r}
+#SETTING EXPERIMENT PARAMETERS:
+r.offs<-c(1/100000, 1/10000,1/1000,1/100,1/10)
+r.ons<-c(1/100,1/10,1)
+alphas<-c(1/100,1/10,10) #avg. disp = 1/10 interpatch distance, the interpatch distance and global disp
+n.patches<-14
+landscape.type<-"linear"
+landscape.limit<-100
+patch.distribution<-"uniform"
+areas.distribution<-"uniform"
+areas.limit<-1
+clustering.iters<-0
+
+#CREATING EXPERIMENTAL LANDSCAPES
+landscape<-create.landscape(n.patches=n.patches, landscape.type=landscape.type, landscape.limit=landscape.limit, 
+                            patch.distribution=patch.distribution, areas.distribution=areas.distribution, areas.limit=areas.limit, 
+                            clustering.iters=clustering.iters)
+#print(ggplot(landscape, aes(x.coord,y.coord)) + theme_classic() + geom_point(aes(size = areas))) #plotting
+n.patches<-length(landscape$patch.ID) #for future use
+
+source("QED_metrics_func_for_large_N_BigintToBin.r") #QED.metrics()
+results<-QED.metrics(sample=(2^14), landscape=landscape, e.rate=0.1, c.rate=0.2, gamma=0, epsilon=n.patches, self.rec=1, alpha=1/100, r.on=1/100, r.off=1/10000)
+```
+
+
+

@@ -1,0 +1,211 @@
+---
+title: "quasi.eq Function Documentation and Testing"
+output: html_notebook
+---
+
+This function takes as its arguments the number of patches (N), and the rates of patches turning from off to on (r.on) and on to off (r.off). It constructs the generator matrix (A -as Austin called it- or G.mat -as I call it inline with convention-) that describes the transition rates from each configuration of on/off to each other. It then takes the submatrix corresponding with the transient states (C.submat -again following convention-) and calculates the quasi-equilibrium distribution (QED.dist) and expected time to absorption into the all the all-zero state (t.absorp) using the dominant eigenvector/eigenvalue pair from C.submat. Similarly it also calculates the rate of convergence to the QED vs absorption (rate.comparison) and the ratio of means distribution (ratio.of.means.dist) for checking how reasonable the QED calculations are.
+
+Specifically,
+
+The **quasi-equilibrium distribution** is the the dominant left eigenvector (ie. the left eigenvector corresponding to the eigenvalue with maximal real part of the subgenerator matrix C)
+
+The **time to absorption** (given we begin in a given state) is given by the sum of each row of the fundamental matrix.
+
+The QED is only a good measure when the **rate of convergence to the QED vs. absorption** is less than 1. That is when 2(rho.1/rho.2)<1 (vs. QED poor when >1), where rho.1 is the dominant eigenvalue and rho.2 is the next largest.
+
+The **ratio of means distribution** provides the probality of and/or proportion time spent in each configuration depending on which configuration we began in. This should converge to the quasi equilibrium distribution provided time to absorption long enough (2(rho.1/rho.2)<<1) and provides a good check our calculations of this and the QED are behaving properly. It is given by the fundamental matrix divided by the sum of it's rows. 
+
+
+Note: I might actually be able to speed up this function by replacing the for loops as I did in the CTMC function but that may be a lot of unessecary work so I'm going to leave it for now.
+```{r}
+rm(list=ls()) #clear the workspace
+library("reticulate")
+library("Matrix") #to get sparse matrices
+library("gdata") #to get upper and lower triangles of matrices
+library("lava") #to get antidiagonal of a matrix using revdiag
+library("tictoc")
+```
+
+
+```{r}
+quasi.eq<-function(n.patches, r.on, r.off){
+  #library("R.utils") #needed for creating a binary number
+  
+  n.on.vec<-0:(n.patches+1) #provides vector of states indicating how many patches are on
+  up.diag<-(n.patches-n.on.vec)*r.on #calculates the values for the upper diagonal of the matrix
+  up.diag<-up.diag[-(n.patches+1)] #removing the last since that calculation goes beyond the range necessary
+  lo.diag<-n.on.vec*r.off #calculates the values for the lower diagonal of the matrix
+  lo.diag<-lo.diag[-1] #removing the first since that calculation goes beyond the range necessary
+  A<-matrix(0,(n.patches+1),(n.patches+1)) #make an empty matrix of correct dimensions
+  M<-A #make a copy to insert the upper diagonal we want 
+  N<-A #make a copy to insert the lower diagonal we want
+  #put these in as the diagonals to these respective matrices
+  diag(M)<-up.diag 
+  diag(N)<-lo.diag
+  #and use them to populate our matrix appropiately
+  upperTriangle(A, diag=F, byrow=F)<-upperTriangle(M, diag=T, byrow=F) 
+  lowerTriangle(A, diag=F, byrow=T)<-lowerTriangle(N, diag=T, byrow=T)
+  #ignore the warning messages: it by default trims the matrices as I want them to be trimmed such that the 
+  #appropiate values populate the upper and lower triangles
+  diag(A)<--rowSums(A) #since this is a CTMC (therefore transitions are instantaneous) rows must sum to 0 and therefore transitions out of static states happen at a rate equal to - the sum across rows
+  A[1,]<-0 #since it's an absorbing matrix the first row corresponding to all patches off has no rates of transition out of this state
+  A <- Matrix(A, sparse=TRUE) #just making it a sparse matrix for consistency with the code that uses the full CTMC
+  
+  #this provides us with the infinitessimal generator matrix A 
+  G.mat<-(A)
+  #G.mat
+  
+  #C.submat is the submatrix corresponding to the transient states (i.e. on to off or off to on 
+  #(not staying on or turning off))
+  C.submat<-G.mat[2:(n.patches+1),2:(n.patches+1)]
+  #sparse_C <- as(C.submat, "sparseMatrix")
+  #print(C.submat)
+  
+  #the negetive inverse of C gives us the fundamental matrix N=(I-Q)^-1, 
+  #which gives the ratio of means distribution
+  fundamental.matrix<--Matrix::solve(C.submat) #solve gives the inverse of a matrix *not inv*
+  
+  #from C we can easily calculate the quasi equilibrium distribution 
+  #and time to absorption using the eigenvectors and eigenvalues of the matrix
+  
+  #first calculate the eigenvalues and eigenvectors (right and left) and organize these in
+  E<-eigen(C.submat) #calculate the right eigenvectors and eigenvalues 
+  EL <- eigen(Matrix::t(C.submat)) #calculate the left eigenvectors   
+  C1<-E$vectors #F1 is the set of right eigenectors
+  C2<-diag(E$values) #F2 is diagonal matrix of the eigenvalues
+  C3 <- EL$vectors #F3 is the set of left eigenvectors
+  
+  #the Quasi-stationary distribution is the left eigenvector corresponding to the eigenvalue 
+  #,with maximal real part, of subgenerator matrix C
+  rho.1<-max(Re(E$values)) #rho.1 is the eigenvalue with max real part
+  rho.2<-max(Re(E$values[(E$values!=rho.1)])) #rho.2 is the next largest eigenvalue
+  max.index<-which.max(diag(C2)) #finds the location of rho.1
+  QED.dist<-abs(C3[,max.index]) #take the absolute values of the left eigenvector corresponding to rho.1
+  QED.dist<-QED.dist/sum(QED.dist) #gives relative frequencies
+  
+  #converting the QED of the reduced CTMC to the QED of the full CTMC:
+  n.on<-n.on.vec[-1] #can't have none on at QED by definition
+  n.on<-n.on.vec[-(n.patches+1)] #can't have more than n.patches on either (this was just an extra calc for the sake of making the matrices)
+  x<-factorial(n.patches)/(factorial(n.on.vec[-1])*factorial(n.patches-n.on.vec[-1])) #calculating N_choose_k
+  #aka number of different configurations possible with that number of patches on
+  QED.dist/x #converting the QED to the QED for each configuration rather than for the number of patches on
+  
+  #CONVERT EACH STATE "X" TO THE NUMBER OF PATCHES OFF IN THE CONFIGURATION IT REPRESENTS:
+  #1. build a vector with the number of patches off in all possible configurations
+  #ordered according to the sequence they occur as rows in our full CTMC transition matrix
+  for (i in 1:n.patches){
+    if (i==1){X<-c(1,0)
+    }else{X<-c(X+1,X)}}
+  X<-X[-1] #removing the number off in the all off state
+  #then using this to obtain the full CTMC's QED for each configuration
+    QED.dist<-QED.dist[n.patches-X]
+  
+  
+  #the time to absorption given we begin in a given state is given by summing across rows of
+  #the fundamental matrix (a short cut to do this is to multiply the matrix by 
+  #a column vector of 1's) and multiplying by the trace of (I-Q)
+  c<-sum(-Matrix::diag(C.submat)) #the trace is just the sum of the diagonal elements
+  T.absorp<-fundamental.matrix%*%rep(1,n.patches)*c
+  
+  rate.comparison<-2*rho.1/rho.2 #compares the rate of convergence to QED versus to absorption
+  #the QED provides a good estimate of dynamics when this is <1, poor when >1
+  
+  ratio.of.means.dist<-matrix(rep(NA,n.patches),n.patches,n.patches)
+  for (i in 1:n.patches){
+    ratio.of.means.dist[i,]<-fundamental.matrix[i,]/sum(fundamental.matrix[i,])}
+  #note: the ratio of means distribution is for the reduced CTMC not the full CTMC here
+  
+  #print(G.mat)
+  return(list(QED.dist=QED.dist, T.absorp=T.absorp, rate.comparison=rate.comparison, ratio.of.means.dist=ratio.of.means.dist))
+}
+```
+
+TESTING
+Things to look for
+A) The ratio of means distribution converges to the QED when the rate comparison is well below 1
+B) Check calculations by hand for a 2 patch test case
+```{r}
+quasi.eq(n.patches=2, r.on=100, r.off=1)
+```
+Works great!
+
+Increasing patch number...
+```{r}
+quasi.eq(n.patches=4, r.on=100, r.off=1)
+```
+Works great!
+
+Again...
+```{r}
+quasi.eq(n.patches=6, r.on=100, r.off=1)
+```
+Still good but numbers are starting to get very small
+
+Thoughts:
+1) More patches = faster convergence to the QED for same rates
+2) More patches = longer time to absorption... as we would expect
+
+
+Even higher...
+```{r}
+quasi.eq(n.patches=7, r.on=100, r.off=1)
+```
+And it breaks
+
+Thoughts:
+1) QED is indeed being reached very fast -we still get and estimate for this and for the rate of convergence... just not time to absorption and ratio of means distribution-
+2) Time to absorption, though shown as -INF here blows up
+3) We're probably into rounding errors in R here
+
+Lets' try for different rates r.on and r. off
+how about equal rates to start and let's go back to 6 patches
+```{r}
+quasi.eq(n.patches=6, r.on=1, r.off=1)
+```
+
+10x higher r.on
+```{r}
+quasi.eq(n.patches=6, r.on=10, r.off=1)
+```
+Thoughts
+1) Time to absorption increasing
+2) faster convergenge to QED
+
+And making r.off 10x bigger than r.on
+```{r}
+quasi.eq(n.patches=6, r.on=1, r.off=10)
+```
+Thoughts
+1) Time to absorption low (within 100 timesteps)
+2) Slow convergence to QED (outside range where QED appropiate)
+3) ratio of means distribution does not converge close to the QED
+
+Ok so now let's see what r.on needs to be for 7 patches to work
+```{r}
+quasi.eq(n.patches=7, r.on=10, r.off=1)
+```
+Alright 10x works
+
+Thoughts
+1) So for higher patch numbers r.on needs to be high enough (or r.off low enough) for the calculator to provide accurate time to absorption and the ratio of means distribution
+2) the QED and rate convergence calculations might be ok... would have to explore
+
+Let's try and make it work for a very large number of patches (like what we might have in a landscape)
+starting with 20
+```{r}
+quasi.eq(n.patches=20, r.on=1000000, r.off=1)
+```
+Okay! Can now do 20 patches! YAY!
+
+```{r}
+system.time(
+quasi.eq(n.patches=30, r.on=1000000, r.off=1)
+)
+```
+can do 30 it just takes about a minute.
+
+```{r}
+quasi.eq(n.patches=40, r.on=1000000, r.off=1)
+```
+
+40 gets to be too slow even using this reduced matrix.
