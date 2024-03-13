@@ -2,6 +2,8 @@
 # DESCRIPTION:
 ##########################################################################################################
 
+#WARNING: SLOW & MEMORY INTENSIVE! USE ONLY FOR SMALL LANDSCAPES (n.patches~<=20)
+
 # Source this script to calculate the persistence capacity (lambda.M.delta), landscape capacity (lambda.M),
 # geometric mean equilibrium occupancy of the landscape by the metapopulation at QED (geom.pstar.QED), 
 # arithmetic mean equilibrium occupancy of the landscape by the metapopulation at QED (ar.pstar.QED),
