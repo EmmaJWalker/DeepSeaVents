@@ -1,8 +1,3 @@
-
-
-
-
-
 ##########################################################################################################
 # DESCRIPTION:
 ##########################################################################################################
@@ -70,20 +65,8 @@ simulate_Metapop_impHabitat_BigN<-function(limit, landscape, e.rate, c.rate, alp
   ##calculate the extinction rate for each patch (if areas are all 1 the extinction rate is patch independent)
   extinction.rates<-e.rate/p.sizes
   delta<-e.rate/c.rate
-  
   dist.mat<-get_distmat(landscape=landscape)
-
-  #Getting the f(dij) values to plug into the rhs
-  disp.kernel<-get_dispkernel(dist.mat=dist.mat, alpha=alpha, gamma=gamma, self.rec=self.rec)
-  #CHECK: f.vals
-  f.vals<-as.vector(disp.kernel)
-  f.names<-matrix(rep(NA,n.patches*n.patches),n.patches,n.patches)
-  for (i in 1:n.patches){
-    for (j in 1:n.patches){
-      f.names[i,j]<-paste0("f.vals",i,j)
-    }
-  }
-  f.names<-as.vector(f.names)
+  disp.kernel<-get_dispkernel(dist.mat=dist.mat, alpha=alpha, gamma=gamma, self.rec=self.rec)  
   #################################################################################################
   
   #2) SET THE INITIAL CONDITIONS FOR THE SYSTEM:
@@ -100,6 +83,17 @@ simulate_Metapop_impHabitat_BigN<-function(limit, landscape, e.rate, c.rate, alp
       trans<-0 #no transitions have occured initially
       sim.data<-rep(NA, n.patches+1) #########################CHECK!!!!!
       configs.data<-rep(NA, n.patches+1) #######################CHECK!!!!!
+      
+      #3.3 A1) CREATE A NAMED LIST OF PARAMETERS FOR THE SRLM ODEs
+      #note: while obviously the values of some of these parameters will change with configuration
+      #changes, the names of these parameters don't so we just set these up with the initial values 
+      #just to start *********************************
+      ############################################
+      parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,p.sizes,config
+                          ,as.vector(disp.kernel))
+      parameters<-name_SRLMODEparams(parameter.values)
+      ###########################################
+      
      
   # 3) PROVIDE A STOPPING CONDITION TO KEEP SIMULATIONS FROM TAKING TO LONG
   #################################################################################################
@@ -118,8 +112,9 @@ simulate_Metapop_impHabitat_BigN<-function(limit, landscape, e.rate, c.rate, alp
     
     # 4.2) SET UP AND RUN THE SRLM AND RECORD THE HABITAT AND METAPOPULATION DYNAMICS BETWEEN t AND tau
     parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,p.sizes,config
-                        ,f.vals)
-    output<-setNrun_SRLMODE(parameter.values=parameter.values, f.names=f.names, ICs=ICs, t=t, tau=tau, 
+                        ,as.vector(disp.kernel))
+    output<-setNrun_SRLMODE(parameter.values=parameter.values, f.names=f.names, 
+                            ICs=ICs, t=t, tau=tau, 
                     sim.data=sim.data, configs.data=configs.data)
     sim.data<-output[[1]]
     configs.data<-output[[2]]

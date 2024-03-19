@@ -4,16 +4,10 @@
 #patches for which the "config=0" are left out
 #making sure "off" patches don't colonize or get colonized in the rhs of the ODE system
 
-setNrun_SRLMODE<-function(parameter.values, f.names, ICs, t, tau, sim.data, configs.data){
+setNrun_SRLMODE<-function(parameters, ICs, t, tau, sim.data, configs.data){
   
-  n.patches<-parameter.values[1]
-  config<-parameter.values[(4+n.patches*4):(3+n.patches*5)]
-  
-  #3.3 A1) CREATE A NAMED LIST OF PARAMETERS FOR THE SRLM ODEs
-  #creating a list of the parameters we calculated to be passed to our ODE function
-  ############################################
-  parameters<-name_SRLMODEparams(parameter.values, f.names)
-  ###########################################
+  n.patches<-parameters[1]
+  config<-parameters[(4+n.patches*4):(3+n.patches*5)]
   
   #3.3 A2) Setting our initial values for the SRLM ODE
   ###########################################

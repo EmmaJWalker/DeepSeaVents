@@ -1,7 +1,24 @@
+##########################################################################################################
+# DESCRIPTION:
+##########################################################################################################
+
+# This function simply defines the system of differential equations describing 
+# the SRLM as they must be set up for use by one of R's ode solvers.
+
+# INPUTS:
+# t: a time sequence for the equations to be solved over
+# p: occupancy of patches as described by the equations set up by this function
+# parameters: a vector of parameters used to construct the equations (must be a 
+# named list with unique names for every parameter, including all elements of 
+# any vectors or matrices)
+
+####################################################################################
+# FUNCTION CODE:
+####################################################################################
 SRLM.ODE<-function(t,p,parameters){
   with(c(p, parameters), {
     ###############################################################################################
-    #parameters index just for reference
+    #parameters index some of which is commented out and just for reference
     ###############################
     n.patches<-parameters[[1]][1]
     c.rate<-parameters[[1]][2]
