@@ -91,7 +91,7 @@ simulate_Metapop_impHabitat_BigN<-function(limit, landscape, e.rate, c.rate, alp
       ############################################
       parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,p.sizes,config
                           ,as.vector(disp.kernel))
-      parameters<-name_SRLMODEparams(parameter.values)
+      parameter.names<-name_SRLMODEparams(parameter.values)
       ###########################################
       
      
@@ -113,7 +113,8 @@ simulate_Metapop_impHabitat_BigN<-function(limit, landscape, e.rate, c.rate, alp
     # 4.2) SET UP AND RUN THE SRLM AND RECORD THE HABITAT AND METAPOPULATION DYNAMICS BETWEEN t AND tau
     parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,p.sizes,config
                         ,as.vector(disp.kernel))
-    output<-setNrun_SRLMODE(parameter.values=parameter.values, f.names=f.names, 
+    parameters<-list(c(setNames(parameter.values, parameter.names)))
+    output<-setNrun_SRLMODE(parameters, 
                             ICs=ICs, t=t, tau=tau, 
                     sim.data=sim.data, configs.data=configs.data)
     sim.data<-output[[1]]

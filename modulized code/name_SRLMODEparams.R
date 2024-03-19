@@ -2,7 +2,7 @@
 # DESCRIPTION:
 ##########################################################################################################
 
-# This function creates a named list of the parameters to be supplied to 
+# This function creates a vector of parameter names to be supplied to 
 # the SRLMODE function because R’s ode solvers require all parameters to be 
 # supplied in a single named list of with unique names for every parameter use 
 # in an equation (aka if a parameter is a vector or a matrix every single 
@@ -17,8 +17,8 @@
 #                   f.vals
 
 # OUTPUTS: a list containing:
-# parameters: a named list where each entry contains the unique name of a 
-#             parameter and its value, for every single value needed to 
+# parameter.names: a vector where each entry contains the unique name of a 
+#             parameter for every single value needed to 
 #             construct the system of differential equations for the SRLM
 
 # REQUIRED PACKAGES:
@@ -45,9 +45,7 @@ name_SRLMODEparams<-function(parameter.values){
                      rep(paste0("areas",1:n.patches)),
                      rep(paste0("config",1:n.patches))
                      ,f.names)
-  parameters<-list(c(setNames(parameter.values, parameter.names)))
-
-  return(parameters)
+  return(parameter.names)
 }
 ####################################################################################
 # QUICK CHECK: (uncomment and run to check)
