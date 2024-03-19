@@ -39,7 +39,7 @@ library("gtools") #to get even() function
 library("tidyverse") #to get filter function
 library("doParallel") #to run code in parallel
 #SET WORKING DIRECTORY TO WHERE THE REQUIRED FUNCTIONS ARE
-#setwd("C:/Users/Administrator/Desktop/JAN 2024/modulized code")
+setwd("C:/Users/Administrator/Desktop/emma_git/DeepSeaVents/modulized code")
 #LOADING REQUIRED FUNCTIONS
 source("make_reduced_Gmat.r")
 source("Gmat_to_Csubmat.r")
@@ -53,22 +53,24 @@ source("get_QEDMetapopMetrics.r")
 
 #SET UP PARAMETERS FOR DESIRED METAPOPULATION AND DYNAMIC LANDSCAPE
 ####################################################################
-#n.patches<-10 # integer equal to the total number of patches in the system
-#landscape.type<-"line" # set to "line" or "plane" indicating whether to have a 1D or 2D patch arrangement
-#landscape.size<-100 # numerical value indicating max y (and x coordinates if 2D)
-#p.dist<-"uniform" # set to "clustered", "random", "uniform" for how patches should be distributed in the landscape
-#p.size.dist<-"uniform" # set to "lognormal", "random" or "uniform" indicating how patch sizes are to be distributed
-#max.p.size<-1 # numerical value indicating largest patch size
-#clust.its<-1000 # integer equal to the number of times to iterate the algorithm increasing clustering or uniformity for
+n.patches<-50 # integer equal to the total number of patches in the system
+landscape.type<-"line" # set to "line" or "plane" indicating whether to have a 1D or 2D patch arrangement
+landscape.size<-100 # numerical value indicating max y (and x coordinates if 2D)
+p.dist<-"uniform" # set to "clustered", "random", "uniform" for how patches should be distributed in the landscape
+p.size.dist<-"uniform" # set to "lognormal", "random" or "uniform" indicating how patch sizes are to be distributed
+max.p.size<-1 # numerical value indicating largest patch size
+clust.its<-1000 # integer equal to the number of times to iterate the algorithm increasing clustering or uniformity for
 ##                 the distribution of patches in the landscape
-#r.on<-0.1 # the rate at which patch gain
-#r.off<-0.01 # the rate at which patch loss
-#s.size<-100 # integer number of possible configurations to use (max 2^n.patches)
-#N<-48 # integer number of computational cores available
-#e.rate<-0.1 # within patch population extinction rate
-#c.rate<-0.2 # colonization rate of patches when a disperse arrives at a patch
-#alpha<-0.1 # 1/(the avg. dispersal distance of a species)
-#iterations<-1000 # integer value indicating the number of times to perform the interative function for finding pstar
+r.on<-0.1 # the rate at which patch gain
+r.off<-0.01 # the rate at which patch loss
+s.size<-100 # integer number of possible configurations to use (max 2^n.patches)
+N<-48 # integer number of computational cores available
+e.rate<-0.1 # within patch population extinction rate
+c.rate<-0.2 # colonization rate of patches when a disperse arrives at a patch
+alpha<-0.1 # 1/(the avg. dispersal distance of a species)
+gamma<-0
+self.rec<-1
+iterations<-1000 # integer value indicating the number of times to perform the interative function for finding pstar
 ##                  (larger => greater accuracy)
 #############################################################################
 
@@ -104,6 +106,8 @@ QED<-QED[n.on]
 #CALCULATING ESTIMATES OF THE QED METAPOPULATION METRICS USING THE SUBSET OF ALL POSSIBLE HABITAT CONFIGURATIONS
 QEDmetapop.metrics<-get_QEDMetapopMetrics(config.metrics=config.metrics, QED=QED)
 QEDmetapop.metrics
+#SET WHERE TO SAVE A CSV OF ALL THESE CALCULATED VALUES
+setwd("C:\Users\Administrator\Desktop\emma_git\DeepSeaVents\QEDMetapopMetrics calculated for 50 patch landscapes")
 
 
 

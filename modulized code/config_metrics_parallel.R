@@ -74,7 +74,7 @@ config_metrics_parallel<-function(i, N, configs, landscape, e.rate, c.rate, gamm
   library("reticulate") #for something...
   library("gtools") #for na.replace
   #LOADING REQUIRED FUNCTIONS
-  setwd("C:/Users/Administrator/Desktop/JAN 2024/modulized code")
+  setwd("C:/Users/Administrator/Desktop/emma_git/DeepSeaVents/modulized code")
   source("get_distmat.r")
   source("get_dispkernel.r")
   source("get_lambdaM.r")
