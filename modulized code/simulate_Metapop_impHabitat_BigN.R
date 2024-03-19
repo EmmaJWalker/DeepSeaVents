@@ -111,6 +111,7 @@ simulate_Metapop_impHabitat_BigN<-function(limit, landscape, e.rate, c.rate, alp
     tau<-get_tau(config=config, r.on=r.on, r.off=r.off)
     
     # 4.2) SET UP AND RUN THE SRLM AND RECORD THE HABITAT AND METAPOPULATION DYNAMICS BETWEEN t AND tau
+    # update the parameters with values based on the current configuration of the habitat
     parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,y.coord,p.sizes,config
                         ,as.vector(disp.kernel))
     parameters<-list(c(setNames(parameter.values, parameter.names)))
