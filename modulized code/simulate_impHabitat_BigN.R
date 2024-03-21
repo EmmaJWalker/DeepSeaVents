@@ -104,18 +104,8 @@ simulate_impHabitat_BigN<-function(limit, limit.type="time", n.patches, r.on, r.
 #library("Matrix") #to get sparse matrices
 #library("gdata") #to get upper and lower triangles of matrices
 #library("lava") #to get anti-diagonal of a matrix using revdiag
-#library("deSolve")
 #setwd("/Users/abuga/Dropbox/Mac/Desktop/git/DeepSeaVents/modulized code")
-#source("make_landscape.r")
-#source("get_distmat.r")
-#source("get_dispkernel.r")
-#source("get_lambdaM.r")
-#source("get_pstar.r")
 #source("transition.r")
-#source("name_SRLMODEparams.r")
-#source("SRLMODE.r")
-#source("at_equilibrium_rootfunc.r")
-#source("get_distmat.r")
 #source("make_reduced_Gmat.r")
 #source("Gmat_to_Csubmat.r")
 #source("get_QED.r")
@@ -131,19 +121,13 @@ simulate_impHabitat_BigN<-function(limit, limit.type="time", n.patches, r.on, r.
 #C.submat<-Gmat_to_Csubmat(G.mat)
 #output<-get_QED(C.submat)
 #QED<-output[[1]]
-#landscape<-make_landscape(n.patches=n.patches, landscape.type="line", 
-#                          landscape.size=100, p.dist="uniform", 
-#                          p.size.dist="uniform", max.p.size=1, clust.its=0)
 #Sys.time()
-#output<-simulate_Metapop_impHabitat_BigN(limit=1000, limit.type="time", landscape=landscape, 
-#                                         e.rate=0.1, c.rate=0.2, alpha=0.1, 
-#                                         gamma=0, self.rec=1, r.on=r.on, 
+#output<-simulate_impHabitat_BigN(limit=1000, limit.type="time", 
+#                                         n.patches=n.patches, r.on=r.on, 
 #                                         r.off=r.off, QED=QED)
 #Sys.time()
-#tail(output$sim.data)
-#tail(output$configs.data)
-## takes 7 min 50 patches, r.on=0.1, r.off=0.01
-#nrow(output$configs)
+#tail(output)
+#nrow(output)
 
 
 
