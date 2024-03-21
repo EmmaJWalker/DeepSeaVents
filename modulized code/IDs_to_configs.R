@@ -24,8 +24,8 @@
 ####################################################################################
 # FUNCTION CODE:
 ####################################################################################
-IDsToConfigs<-function(x, n.patches){
-  x<-x
+IDsToConfigs<-function(config_ID, n.patches){
+  x<-config_ID
   n.on.vec<-1:n.patches
   z<-factorial(n.patches)/(factorial(n.on.vec)*factorial(n.patches-n.on.vec)) 
   #number of different configurations possible with any given number of patches on
@@ -101,7 +101,7 @@ IDsToConfigs<-function(x, n.patches){
 ####################################################################################
 #rm(list=ls()) #to ensure a clean environment
 ## now run the FUNCTION CODE!!!
-#IDsToConfigs(x=31, n.patches=5)
-#IDsToConfigs(x=32512, n.patches=15)
-#IDsToConfigs(x=32767, n.patches=15)
+#IDsToConfigs(config_ID=31, n.patches=5)
+#IDsToConfigs(config_ID=32512, n.patches=15)
+#IDsToConfigs(config_ID=32767, n.patches=15)
 ####################################################################################

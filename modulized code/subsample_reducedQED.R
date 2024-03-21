@@ -105,7 +105,7 @@ subsample_reducedQED<-function(QED, n.patches, s.size){
   #STEP 3: Convert the chosen configuration IDs to the configurations of on and off patches they represent
   configs.sample<-matrix(rep(NA, (n.patches*s.size)), nrow=s.size, ncol=n.patches)
   for (i in 1:length(config.IDsample)){
-    configs.sample[i,]<-IDsToConfigs(x=config.IDsample[i], n.patches=n.patches)
+    configs.sample[i,]<-IDsToConfigs(config_ID=config.IDsample[i], n.patches=n.patches)
   }
   
   return(configs.sample)
