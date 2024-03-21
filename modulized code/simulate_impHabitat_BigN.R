@@ -56,53 +56,24 @@
 ################################################################################
 # FUNCTION CODE:
 ################################################################################
-simulate_Metapop_impHabitat_BigN<-function(limit, limit.type="time", landscape, 
-                                           e.rate, c.rate, alpha, gamma, 
-                                           self.rec, r.on, r.off, QED){
-  #*****************************************************************************
-  # EXTRACT ALL THE PARAMETER VALUES FROM THE FUNCTION ARGUMENTS:
-  #*****************************************************************************
-  n.patches<-length(landscape$patch.ID)
-  p.sizes<-landscape$p.sizes
-  x.coord<-landscape$x.coord
-  y.coord<-landscape$y.coord
-  ##calculate the extinction rate for each patch 
-  #(if areas are all 1 the extinction rate is patch independent)
-  extinction.rates<-e.rate/p.sizes
-  delta<-e.rate/c.rate
-  dist.mat<-get_distmat(landscape=landscape)
-  disp.kernel<-get_dispkernel(dist.mat=dist.mat, alpha=alpha, gamma=gamma, 
-                              self.rec=self.rec)  
+simulate_impHabitat_BigN<-function(limit, limit.type="time", n.patches, r.on, r.off, QED){
   #*****************************************************************************
   # SET THE INITIAL CONDITIONS FOR THE SYSTEM:
   #*****************************************************************************
-      # starting config chosen w pr(config @ QED)
-      config<-vec(subsample_reducedQED(QED=QED, n.patches=n.patches, s.size=1))
-      # starting at the equilibrium occupancy of that habitat configuration
-      ICs<-config
-      ICs[config!=0]<-get_pstar(landscape=landscape[config!=0,], e.rate=e.rate, 
-                                c.rate=c.rate, disp.kernel=disp.kernel, 
-                                iterations=1000)
-      t<-0 #start at time 0
-      tau.times<-0 #no initial time until transition
-      trans<-0 #no transitions have occured initially
-      sim.data<-rep(NA, n.patches+1) 
-      configs.data<-rep(NA, n.patches+1)
-  #*****************************************************************************
-  # CREATE NAMES FOR THE PARAMETERS AND ICs FOR THE SRLM ODEs:
-  #*****************************************************************************
-      parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,
-                          y.coord,p.sizes,config,as.vector(disp.kernel))
-      parameter.names<-name_SRLMODEparams(parameter.values)
-      IC.names<-rep(paste0("p",1:n.patches))
+  # starting config chosen w pr(config @ QED)
+  config<-vec(subsample_reducedQED(QED=QED, n.patches=n.patches, s.size=1))
+  t<-0 #start at time 0
+  tau.times<-0 #no initial time until transition
+  trans<-0 #no transitions have occured initially
+  configs.data<-rep(NA, n.patches+1)
   #*****************************************************************************
   # PROVIDE THE STOPPING CONDITION TO KEEP SIMULATIONS FROM TAKING TOO LONG
   #*****************************************************************************
-      if (limit.type=="trans"){
-        dont.stop<-(sum(config) > 0 & trans < limit)
-      } else if (limit.type=="time"){
-        dont.stop<-(sum(config) > 0 & t < limit)
-      }
+  if (limit.type=="trans"){
+    dont.stop<-(sum(config) > 0 & trans < limit)
+  } else if (limit.type=="time"){
+    dont.stop<-(sum(config) > 0 & t < limit)
+  }
   #*****************************************************************************
   # BEGIN THE SIMULATION:
   #*****************************************************************************
@@ -112,50 +83,16 @@ simulate_Metapop_impHabitat_BigN<-function(limit, limit.type="time", landscape,
     configs.data<-rbind(configs.data, c(t, config))
     # 2) DETERIME WILL BE SPENT IN IT:
     tau<-get_tau(config=config, r.on=r.on, r.off=r.off)
-    # 3) UPDATE THE PARAMETER AND IC VALUES IN THE NAMED LISTS:
-    parameter.values<-c(n.patches,c.rate,self.rec,extinction.rates,x.coord,
-                        y.coord,p.sizes,config,as.vector(disp.kernel))
-    parameters<-list(c(setNames(parameter.values, parameter.names)))
-    IC.values<-ICs
-    p<-setNames(IC.values,IC.names)
-    # 4) MAKE SURE TAU IS NOT TOO SMALL OR THIS WILL MAKE AN ERROR IN THE ODE
-    # SOLVER
-    if(tau<1){ #if tau is less than one
-      step.length<-tau/2 #let the step length for the SRLM be half of tau
-    }else{step.length<-1} #otherwise just use a step length of 1
-    # 5) SOLVE THE SRLM ODEs BETWEEN t AND tau
-    output<-ode(SRLM.ODE, parameters,times=seq(0,tau,step.length),y=ICs)
-    # 6) UPDATE THE DATA WITH WHAT HAPPENED BETWEEN t and tau 
-    output<-data.frame(output)
-    output$time<-output$time+t
-    sim.data<-rbind(sim.data, output)
-    # 7) STOP THE SIMULATION IF THE METAPOPULATION WENT EXTINCT WHILE HABITAT
-    # REMAINED AND RECORD HOW LONG THE HABITAT WOULD HAVE REMAINED IN THE LAST 
-    # CONFIG
-    if (sum(sim.data[nrow(sim.data),-1]) <= 0){ 
-      configs.data<-rbind(configs.data, c(t+tau, config))
-      break }
-    # 8) UPDATE THE TIME ELAPSED IN SIMULATION
+    # 3) UPDATE THE TIME ELAPSED IN SIMULATION
     t<-t+tau
-    # 9) TRANSITION INTO A NEW CONFIGURATION:
+    # 4) TRANSITION INTO A NEW CONFIGURATION:
     config<-transition(config=config, r.on=r.on, r.off=r.off)
-    # 10) UPDATE THE ICs WITHIN THE NEW CONFIGURATION:
-    ICs<-as.numeric(as.character(sim.data[length(sim.data[,1]),-1])) #patches 
-    # will begin with their final occupancies in the previous configuration
-    ICs[config==0]<-0 #except for populations that were lost along with patches
-    # 11) UPDATE A RECORD OF HOW MANY TRANSITIONS HAVE OCCURED
+    # 5) UPDATE A RECORD OF HOW MANY TRANSITIONS HAVE OCCURED
     trans<-trans + 1 #since we simulate on intervals of transition this 
     #increments by 1 each time we run through the algorithm
-    # OPTIONAL:
-    ## 12) UPDATE A RECORD OF HOW LONG WAS SPENT IN EACH CONFIG
-    #if (sum(tau.times) == 0){
-    #  tau.times<-tau
-    #} else {
-    #  tau.times<-c(tau.times, tau)
-    #}
   }
   #*****************************************************************************
-  return(list(sim.data=sim.data, configs.data=configs.data))
+  return(configs.data=configs.data)
 }
 ################################################################################
 # QUICK CHECK: (uncomment and run to check)
@@ -210,16 +147,16 @@ simulate_Metapop_impHabitat_BigN<-function(limit, limit.type="time", landscape,
 
 
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
