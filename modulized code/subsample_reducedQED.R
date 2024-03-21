@@ -107,8 +107,8 @@ subsample_reducedQED<-function(QED, n.patches, s.size){
   for (i in 1:length(config.IDsample)){
     configs.sample[i,]<-IDsToConfigs(config_ID=config.IDsample[i], n.patches=n.patches)
   }
-  
-  return(configs.sample)
+  configs<-configs.sample
+  return(configs)
   ###return(config.IDsample)
 }
 
@@ -133,9 +133,9 @@ subsample_reducedQED<-function(QED, n.patches, s.size){
 #output<-get_QED(C.submat)
 #QED<-output[[1]]
 #Sys.time()
-#configs.sample<-subsample_reducedQED(QED=QED, n.patches=50, s.size=1000)
+#configs<-subsample_reducedQED(QED=QED, n.patches=50, s.size=1000)
 #Sys.time()
-#configs.sample
+#configs
 ##########################################################################################################
 
 

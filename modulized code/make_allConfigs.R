@@ -33,7 +33,8 @@ make_allConfigs<-function(n.patches){
     if (i==1){BB<-as(c(0,1), "sparseVector") #sparse vector version
     }else{BB<-c(BB[1:(2^(i-2))],BB,BB[((2^(i-2))+1):(2^(i-1))])}
     all.configs[,(n-i+1)]<-t(rep(BB,2^(n-i)))}
-  return(all.configs)
+  configs<-all.configs
+  return(configs)
 }
 ##########################################################################################################
 # QUICK CHECK: (uncomment and run to check)
@@ -41,7 +42,7 @@ make_allConfigs<-function(n.patches){
 #rm(list=ls()) #to ensure a clean environment
 ## now run the FUNCTION CODE!!!
 #library("Matrix") #to get sparse matrices
-#configs<-make_allConfigs(n.patches=15) # 10 takes about a seccond, 15 several secconds, ...
-#configs
+#all.configs<-make_allConfigs(n.patches=15) # 10 takes about a seccond, 15 several secconds, ...
+#all.configs
 ##########################################################################################################
 
